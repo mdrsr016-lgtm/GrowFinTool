@@ -1,16 +1,44 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
 
 :root {
-  --bg-color: #0f1115; /* Minimal dark background */
-  --panel-bg: rgba(255, 255, 255, 0.02);
-  --panel-border: rgba(255, 255, 255, 0.06);
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
+  /* Minimal Light Background */
+  --bg-color: #f8fafc; 
+  --panel-bg: rgba(255, 255, 255, 0.6);
+  --panel-border: rgba(255, 255, 255, 0.8);
+  --text-main: #0f172a;
+  --text-muted: #64748b;
   
-  --accent: #e2e8f0;
-  --accent-hover: #ffffff;
-  --success: #34d399;
-  --danger: #f87171;
+  --accent: #334155;
+  --accent-hover: #0f172a;
+  --success: #10b981;
+  --danger: #ef4444;
+
+  --panel-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.05);
+  --bg-blob-1: radial-gradient(circle at 30% 20%, rgba(0, 0, 0, 0.03) 0%, rgba(255, 255, 255, 0) 40%);
+  --bg-blob-2: radial-gradient(circle at 80% 80%, rgba(0, 0, 0, 0.02) 0%, rgba(255, 255, 255, 0) 30%);
+  --logo-filter: none;
+  --bar-bg: rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #0f1115; /* Minimal dark background */
+    --panel-bg: rgba(255, 255, 255, 0.02);
+    --panel-border: rgba(255, 255, 255, 0.06);
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    
+    --accent: #e2e8f0;
+    --accent-hover: #ffffff;
+    --success: #34d399;
+    --danger: #f87171;
+
+    --panel-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.2);
+    --bg-blob-1: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0) 40%);
+    --bg-blob-2: radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.02) 0%, rgba(0, 0, 0, 0) 30%);
+    --logo-filter: invert(1);
+    --bar-bg: rgba(255, 255, 255, 0.1);
+  }
 }
 
 * {
@@ -38,8 +66,7 @@ body::before {
   left: -10%;
   width: 120%;
   height: 120%;
-  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0) 40%),
-              radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.02) 0%, rgba(0, 0, 0, 0) 30%);
+  background: var(--bg-blob-1), var(--bg-blob-2);
   z-index: -1;
 }
 
@@ -88,6 +115,22 @@ p {
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), padding 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow-x: hidden;
+}
+
+.sidebar.collapsed {
+  width: 80px;
+  padding: 2rem 1rem;
+}
+
+.sidebar.collapsed .sidebar-logo {
+  justify-content: center;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 0.6rem;
 }
 
 .sidebar-logo {
@@ -183,12 +226,14 @@ p {
   -webkit-backdrop-filter: blur(24px);
   border-radius: 16px;
   padding: 1.5rem;
-  transition: border-color 0.2s ease;
-  box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: var(--panel-shadow);
 }
 
 .glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.15);
 }
 
 .metric-value {
@@ -233,18 +278,25 @@ p {
 
 .bar {
   flex: 1;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bar-bg);
   border-radius: 4px 4px 0 0;
-  transition: height 1s ease;
+  animation: growUp 1.2s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+  transform-origin: bottom;
+  transform: scaleY(0);
 }
 
-.bar:nth-child(1) { height: 40%; }
-.bar:nth-child(2) { height: 60%; }
-.bar:nth-child(3) { height: 35%; }
-.bar:nth-child(4) { height: 80%; }
-.bar:nth-child(5) { height: 50%; }
-.bar:nth-child(6) { height: 95%; }
-.bar:nth-child(7) { height: 70%; }
+@keyframes growUp {
+  0% { transform: scaleY(0); }
+  100% { transform: scaleY(1); }
+}
+
+.bar:nth-child(1) { height: 40%; animation-delay: 0.1s; }
+.bar:nth-child(2) { height: 60%; animation-delay: 0.2s; }
+.bar:nth-child(3) { height: 35%; animation-delay: 0.3s; }
+.bar:nth-child(4) { height: 80%; animation-delay: 0.4s; }
+.bar:nth-child(5) { height: 50%; animation-delay: 0.5s; }
+.bar:nth-child(6) { height: 95%; animation-delay: 0.6s; }
+.bar:nth-child(7) { height: 70%; animation-delay: 0.7s; }
 
 .span-2 {
   grid-column: span 2;
@@ -292,12 +344,13 @@ p {
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.6s ease forwards;
+  animation: fadeIn 0.7s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+  opacity: 0;
 }
 
 /* Buttons */

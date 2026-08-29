@@ -18,6 +18,7 @@ import './index.css';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -37,12 +38,12 @@ function App() {
   return (
     <div className="app-container">
       {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-logo animate-fade-in delay-1">
+      <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+        <div className="sidebar-logo animate-fade-in delay-1" onClick={() => setIsCollapsed(!isCollapsed)} style={{ cursor: 'pointer' }}>
           <div className="logo-icon" style={{ background: 'transparent', boxShadow: 'none' }}>
-            <img src="/logo.svg" alt="GrowFinTool Logo" style={{ width: '32px', height: '32px', filter: 'invert(1)' }} />
+            <img src="/logo.svg" alt="GrowFinTool Logo" style={{ width: '32px', height: '32px', filter: 'var(--logo-filter)' }} />
           </div>
-          GrowFinTool
+          {!isCollapsed && <span className="sidebar-text">GrowFinTool</span>}
         </div>
         
         <nav className="nav-menu animate-fade-in delay-2" style={{ marginTop: '2rem' }}>
@@ -53,18 +54,20 @@ function App() {
               onClick={() => setActiveTab(item.id)}
             >
               {item.icon}
-              {item.label}
+              {!isCollapsed && <span className="nav-label">{item.label}</span>}
             </a>
           ))}
         </nav>
 
-        <div className="mt-auto animate-fade-in delay-3" style={{ marginTop: 'auto' }}>
-          <div className="glass-card" style={{ padding: '1rem', textAlign: 'center' }}>
-            <h4 style={{ color: 'white', marginBottom: '0.5rem' }}>Upgrade to Pro</h4>
-            <p style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>Get access to advanced analytics.</p>
-            <button className="btn" style={{ width: '100%', padding: '0.5rem' }}>Upgrade</button>
+        {!isCollapsed && (
+          <div className="mt-auto animate-fade-in delay-3" style={{ marginTop: 'auto' }}>
+            <div className="glass-card" style={{ padding: '1rem', textAlign: 'center' }}>
+              <h4 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>Upgrade to Pro</h4>
+              <p style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>Get access to advanced analytics.</p>
+              <button className="btn" style={{ width: '100%', padding: '0.5rem' }}>Upgrade</button>
+            </div>
           </div>
-        </div>
+        )}
       </aside>
 
       {/* Main Content */}
@@ -86,7 +89,7 @@ function App() {
             <div className="user-profile">
               <div className="avatar"></div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'white' }}>Alex M.</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)' }}>Alex M.</span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Admin</span>
               </div>
             </div>
@@ -180,11 +183,11 @@ function App() {
                       {tx.icon}
                     </div>
                     <div>
-                      <div style={{ color: 'white', fontWeight: 500 }}>{tx.name}</div>
+                      <div style={{ color: 'var(--text-main)', fontWeight: 500 }}>{tx.name}</div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{tx.date}</div>
                     </div>
                   </div>
-                  <div style={{ fontWeight: 600, color: tx.type === 'incoming' ? 'var(--success)' : 'white' }}>
+                  <div style={{ fontWeight: 600, color: tx.type === 'incoming' ? 'var(--success)' : 'var(--text-main)' }}>
                     {tx.amount}
                   </div>
                 </div>
