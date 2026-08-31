@@ -121,6 +121,8 @@ p {
   flex-direction: column;
   gap: 2rem;
   transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), padding 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar.collapsed {
@@ -545,15 +547,26 @@ p {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 1.5rem;
+    padding: 1.5rem;
     background: transparent;
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     position: sticky;
     top: 0;
-    z-index: 30;
+    z-index: 60;
+    transition: backdrop-filter 0.3s ease;
   }
-  
+
+  .mobile-header.menu-open {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    pointer-events: none; /* Let clicks pass through except on the logo */
+  }
+
+  .mobile-header.menu-open .sidebar-logo {
+    pointer-events: auto;
+  }
+
   .mobile-menu-btn {
     background: transparent;
     border: none;
@@ -590,7 +603,7 @@ p {
     left: -100%;
     width: 260px;
     height: 100vh;
-    padding: 2rem 1.5rem;
+    padding: 1.5rem;
     border-right: 1px solid var(--panel-border);
     border-bottom: none;
     flex-direction: column;

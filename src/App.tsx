@@ -81,8 +81,12 @@ function App() {
   return (
     <div className="app-container">
       {/* Mobile Header */}
-      <div className="mobile-header">
-        <div className="sidebar-logo" style={{ cursor: 'pointer' }} onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+      <div className={`mobile-header ${isMobileMenuOpen ? 'menu-open' : ''}`}>
+        <div 
+          className="sidebar-logo" 
+          style={{ cursor: 'pointer' }} 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        >
           <div className="logo-icon" style={{ background: 'transparent', boxShadow: 'none' }}>
             <img src="/logo-online.svg" alt="GrowFinTool Logo" style={{ width: '24px', height: '24px', filter: 'var(--logo-filter)' }} id="mobile-header-logo-img" />
           </div>
@@ -98,16 +102,18 @@ function App() {
 
       {/* Sidebar */}
       <aside className={`sidebar ${effectivelyCollapsed ? 'collapsed' : ''} ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <div className="sidebar-logo animate-fade-in delay-1" onClick={() => setIsCollapsed(!isCollapsed)} style={{ cursor: 'pointer' }}>
-            <div className="logo-icon" style={{ background: 'transparent', boxShadow: 'none' }}>
-              <img src="/logo-online.svg" alt="GrowFinTool Logo" style={{ width: '24px', height: '24px', filter: 'var(--logo-filter)' }} id="sidebar-logo-img" />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMobileMenuOpen ? 'flex-end' : (effectivelyCollapsed ? 'center' : 'space-between'), width: '100%' }}>
+          {!isMobileMenuOpen && (
+            <div className="sidebar-logo animate-fade-in delay-1" onClick={() => setIsCollapsed(!isCollapsed)} style={{ cursor: 'pointer' }}>
+              <div className="logo-icon" style={{ background: 'transparent', boxShadow: 'none' }}>
+                <img src="/logo-online.svg" alt="GrowFinTool Logo" style={{ width: '24px', height: '24px', filter: 'var(--logo-filter)' }} id="sidebar-logo-img" />
+              </div>
+              {!effectivelyCollapsed && <span className="sidebar-text">GrowFinTool</span>}
             </div>
-            {!effectivelyCollapsed && <span className="sidebar-text">GrowFinTool</span>}
-          </div>
-          {isMobileMenuOpen && (
+          )}
+          {(isMobileMenuOpen || !effectivelyCollapsed) && (
             <button 
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => isMobileMenuOpen ? setIsMobileMenuOpen(false) : setIsCollapsed(true)}
               style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: '4px' }}
             >
               <X size={20} />
