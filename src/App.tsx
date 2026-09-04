@@ -478,7 +478,7 @@ function App() {
             {navItems.map((item) => {
               const hasSubItems = item.subItems && item.subItems.length > 0;
               const isExactActive = activeTab === item.id;
-              const isChildActive = hasSubItems && item.subItems.some(sub => activeTab === sub.id);
+              const isChildActive = hasSubItems && item.subItems?.some(sub => activeTab === sub.id);
 
               return (
                 <div key={item.id} className="nav-item-group">
@@ -502,7 +502,7 @@ function App() {
 
                   {hasSubItems && !effectivelyCollapsed && (
                     <div className="nav-subitems">
-                      {item.subItems.map(subItem => (
+                      {item.subItems?.map(subItem => (
                         <a
                           key={subItem.id}
                           className={`nav-subitem ${activeTab === subItem.id ? 'active' : ''}`}
@@ -528,7 +528,7 @@ function App() {
             {adminNavItems.map((item) => {
               const hasSubItems = item.subItems && item.subItems.length > 0;
               const isExactActive = activeTab === item.id;
-              const isChildActive = hasSubItems && item.subItems.some(sub => activeTab === sub.id);
+              const isChildActive = hasSubItems && item.subItems?.some(sub => activeTab === sub.id);
               const hideParentInCollapsed = effectivelyCollapsed && isChildActive;
 
               return (
@@ -565,7 +565,7 @@ function App() {
                   {hasSubItems && (
                     <div className={`nav-subitems-container ${expandedGroups[item.id] || isChildActive ? 'expanded' : ''}`}>
                       <div className="nav-subitems">
-                        {item.subItems.map(subItem => (
+                        {item.subItems?.map(subItem => (
                           <a
                             key={subItem.id}
                             className={`nav-subitem ${activeTab === subItem.id ? 'active' : ''}`}
