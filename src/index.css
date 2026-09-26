@@ -1556,5 +1556,26 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
   .system-manager-content {
     padding: 0;
+    flex-direction: column;
+    overflow-y: visible;
   }
+  
+  .system-manager-content.inner-flex {
+    flex-direction: column !important;
+  }
+  
+  .role-manager-content-area {
+    padding: 1rem !important;
+  }
+}
+
+.role-manager-content-area {
+  flex: 1;
+  padding: 1.5rem 2.5rem;
+  overflow-y: auto;
+}
+
+.responsive-table-container {
+  overflow-x: auto;
+  width: 100%;
 }

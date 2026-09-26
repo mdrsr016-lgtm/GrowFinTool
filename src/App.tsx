@@ -22,7 +22,15 @@ import {
   Move,
   Upload,
   Monitor,
-  Smartphone
+  Smartphone,
+  Trash2,
+  Ban,
+  Crown,
+  Star,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import './index.css';
 
@@ -270,8 +278,657 @@ const BgConfigCard: React.FC<BgConfigCardProps> = ({
   );
 };
 
+const CustomRoleDropdown = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const options = [
+    { value: 'founder', label: 'Founder', icon: <Crown size={14} /> },
+    { value: 'admin', label: 'Admin', icon: <Shield size={14} /> },
+    { value: 'premium_user', label: 'Premium User', icon: <Star size={14} /> },
+    { value: 'user', label: 'User', icon: <User size={14} /> }
+  ];
+
+  const selected = options.find(o => o.value === value) || options[3];
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 50 : 1 }}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          background: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid var(--panel-border)',
+          color: 'var(--text-main)',
+          padding: '0.4rem 0.75rem',
+          borderRadius: '8px',
+          fontSize: '0.85rem',
+          cursor: 'pointer',
+          minWidth: '145px',
+          justifyContent: 'space-between',
+          transition: 'all 0.2s ease',
+          outline: 'none'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(var(--overlay-color), 0.08)'}
+        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(var(--overlay-color), 0.03)'}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ color: 'var(--text-muted)' }}>{selected.icon}</span>
+          {selected.label}
+        </span>
+        <ChevronDown size={14} style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: 0,
+          width: '100%',
+          background: 'rgba(12, 14, 18, 0.95)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          transform: 'translateZ(0)',
+          border: '1px solid var(--panel-border)',
+          borderRadius: '8px',
+          padding: '0.25rem',
+          zIndex: 50,
+          boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.15rem'
+        }}>
+          {options.map(opt => (
+            <div
+              key={opt.value}
+              onClick={() => {
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                color: value === opt.value ? '#3b82f6' : 'var(--text-main)',
+                background: value === opt.value ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                transition: 'background 0.1s ease'
+              }}
+              onMouseEnter={(e) => {
+                if (value !== opt.value) e.currentTarget.style.background = 'rgba(var(--overlay-color), 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                if (value !== opt.value) e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <div style={{ color: value === opt.value ? '#3b82f6' : 'var(--text-muted)' }}>
+                {opt.icon}
+              </div>
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const getRoleLogoFilter = (role: string) => {
+  switch (role) {
+    case 'founder': return 'hue-rotate(110deg) saturate(1.5)';
+    case 'admin': return 'hue-rotate(-40deg) saturate(1.2) brightness(0.8)';
+    case 'premium_user': return 'none';
+    case 'user': return 'invert(1)';
+    default: return 'invert(1)';
+  }
+};
+
+const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: any) => {
+  const [activeSection, setActiveSection] = useState('roles');
+  const [filterRole, setFilterRole] = useState('all');
+  const [selectedRole, setSelectedRole] = useState('founder');
+
+  const permissions = [
+    { category: 'System', items: ['Manage Users', 'Manage Roles', 'System Settings'] },
+    { category: 'Content', items: ['Create Articles', 'Edit Articles', 'Delete Articles', 'Publish Articles'] },
+    { category: 'Analytics', items: ['View Dashboards', 'Export Data', 'Manage Alerts'] }
+  ];
+
+  const [usersList, setUsersList] = useState([
+    { id: 1, name: 'Alice Smith', email: 'alice@example.com', role: 'founder', status: 'Active' },
+    { id: 2, name: 'Bob Johnson', email: 'bob@example.com', role: 'admin', status: 'Active' },
+    { id: 3, name: 'Carol White', email: 'carol@example.com', role: 'premium_user', status: 'Suspended' },
+    { id: 4, name: 'David Brown', email: 'david@example.com', role: 'user', status: 'Active' }
+  ]);
+
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState<{id: string, name: string, description: string} | null>(null);
+
+  const handleToggle = (item: string) => {
+    if (selectedRole === 'founder') return;
+    setRolePermissions((prev: any) => ({
+      ...prev,
+      [selectedRole]: {
+        ...prev[selectedRole],
+        [item]: !prev[selectedRole][item]
+      }
+    }));
+  };
+
+  return (
+    <div className="system-manager-layout animate-fade-in" style={{ padding: 0 }}>
+      {/* Primary Sidebar (Role Manager vs Users) */}
+      <div className="system-manager-sidebar">
+        <h2 className="system-manager-title">Role Manager</h2>
+        <div className="system-manager-nav">
+          <a 
+            className={`system-nav-item ${activeSection === 'roles' ? 'active' : ''}`}
+            onClick={() => setActiveSection('roles')}
+          >
+            <Shield size={16} /> Role Editor
+          </a>
+          <a 
+            className={`system-nav-item ${activeSection === 'users' ? 'active' : ''}`}
+            onClick={() => setActiveSection('users')}
+          >
+            <Users size={16} /> Users
+          </a>
+        </div>
+      </div>
+
+      <div className="system-manager-content inner-flex" style={{ display: 'flex', padding: 0, overflow: 'hidden' }}>
+        {activeSection === 'roles' ? (
+          <>
+            {/* Inner Sidebar (Roles List) */}
+            <div className="system-manager-sidebar" style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>ROLES</h3>
+                <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={() => { setEditingRole(null); setIsRoleModalOpen(true); }}>+ New</button>
+              </div>
+              <div className="system-manager-nav">
+                {roles.map(role => (
+                  <a 
+                    key={role.id}
+                    className={`system-nav-item ${selectedRole === role.id ? 'active' : ''}`}
+                    onClick={() => setSelectedRole(role.id)}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '1rem', gap: '0.5rem', height: 'auto', whiteSpace: 'normal' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <img src="/logo-online.svg" alt="" style={{ width: '18px', height: '18px', filter: getRoleLogoFilter(role.id) }} />
+                        <span style={{ fontWeight: 600, color: selectedRole === role.id ? 'var(--text-main)' : 'inherit', fontSize: '0.95rem' }}>{role.name}</span>
+                      </div>
+                      <span style={{ fontSize: '0.7rem', background: 'rgba(var(--overlay-color), 0.1)', padding: '0.15rem 0.5rem', borderRadius: '12px', color: 'var(--text-main)' }}>{usersList.filter(u => u.role === role.id).length} users</span>
+                    </div>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>{role.description}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Permissions Area */}
+            <div className="role-manager-content-area">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '800px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div>
+                    <h2 style={{ fontSize: '1.5rem', color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                      {roles.find(r => r.id === selectedRole)?.name} Permissions
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)' }}>Manage what this role can see and do.</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={() => { setEditingRole(roles.find(r => r.id === selectedRole) || null); setIsRoleModalOpen(true); }}>
+                      <Settings size={14} /> Edit Role Details
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gap: '1.5rem' }}>
+                  {permissions.map(group => (
+                    <div key={group.category} style={{ background: 'var(--panel-bg)', borderRadius: '12px', border: '1px solid var(--panel-border)', overflow: 'hidden' }}>
+                      <div style={{ padding: '1rem 1.5rem', background: 'rgba(var(--overlay-color), 0.02)', borderBottom: '1px solid var(--panel-border)', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        {group.category === 'System' ? <Shield size={16} /> : group.category === 'Content' ? <LayoutDashboard size={16} /> : <Sliders size={16} />}
+                        {group.category}
+                      </div>
+                      <div style={{ padding: '0.5rem 0' }}>
+                        {group.items.map((item, idx) => {
+                          const isChecked = rolePermissions[selectedRole][item];
+                          const isImmutable = selectedRole === 'founder';
+                          return (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1.5rem', borderBottom: idx !== group.items.length - 1 ? '1px solid var(--panel-border)' : 'none' }}>
+                              <span style={{ color: 'var(--text-main)', fontSize: '0.9rem' }}>{item}</span>
+                              
+                              <div 
+                                className={`toggle-switch ${isChecked ? 'active' : ''}`}
+                                onClick={() => handleToggle(item)}
+                                style={{ opacity: isImmutable ? 0.5 : 1, cursor: isImmutable ? 'not-allowed' : 'pointer' }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="role-manager-content-area">
+            {/* Role Summary Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
+              {/* Total Users Card */}
+              <div 
+                onClick={() => setFilterRole('all')}
+                style={{ 
+                  background: 'var(--panel-bg)', 
+                  borderRadius: '12px', 
+                  border: `1px solid ${filterRole === 'all' ? '#3b82f6' : 'var(--panel-border)'}`, 
+                  padding: '1.25rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '1rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: filterRole === 'all' ? '0 0 0 1px #3b82f6' : 'none'
+                }}
+              >
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(var(--overlay-color), 0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: filterRole === 'all' ? '#3b82f6' : 'var(--text-main)', border: '1px solid var(--panel-border)' }}>
+                  <Users size={20} />
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, marginBottom: '0.25rem' }}>Total Users</div>
+                  <div style={{ color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: 600, lineHeight: 1 }}>
+                    {usersList.length} <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-muted)' }}>users</span>
+                  </div>
+                </div>
+              </div>
+
+              {roles.map(role => {
+                const actualCount = usersList.filter(u => u.role === role.id).length;
+                const isActive = filterRole === role.id;
+                return (
+                  <div 
+                    key={role.id} 
+                    onClick={() => setFilterRole(role.id)}
+                    style={{ 
+                      background: 'var(--panel-bg)', 
+                      borderRadius: '12px', 
+                      border: `1px solid ${isActive ? '#3b82f6' : 'var(--panel-border)'}`, 
+                      padding: '1.25rem', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '1rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: isActive ? '0 0 0 1px #3b82f6' : 'none'
+                    }}
+                  >
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(var(--overlay-color), 0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isActive ? '#3b82f6' : 'var(--text-main)', border: '1px solid var(--panel-border)' }}>
+                      <img src="/logo-online.svg" alt="" style={{ width: '24px', height: '24px', filter: getRoleLogoFilter(role.id) }} />
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, marginBottom: '0.25rem' }}>{role.name}</div>
+                      <div style={{ color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: 600, lineHeight: 1 }}>
+                        {actualCount} <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-muted)' }}>users</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.5rem', color: 'var(--text-main)', marginBottom: '0.25rem' }}>Users</h2>
+                <p style={{ color: 'var(--text-muted)' }}>Manage users and assign roles.</p>
+              </div>
+              <button className="btn" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                + Invite User
+              </button>
+            </div>
+
+            <div className="responsive-table-container" style={{ background: 'var(--panel-bg)', borderRadius: '12px', border: '1px solid var(--panel-border)', minHeight: '350px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(var(--overlay-color), 0.02)', borderBottom: '1px solid var(--panel-border)' }}>
+                    <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>User</th>
+                    <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>Role</th>
+                    <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>Status</th>
+                    <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usersList.filter(u => filterRole === 'all' || u.role === filterRole).map((user, i, arr) => (
+                    <tr key={user.id} style={{ position: 'relative', zIndex: arr.length - i, borderBottom: i !== arr.length - 1 ? '1px solid var(--panel-border)' : 'none' }}>
+                      <td style={{ padding: '1rem 1.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div className="avatar" style={{ width: '32px', height: '32px' }}><User size={16} /></div>
+                          <div>
+                            <div style={{ color: 'var(--text-main)', fontWeight: 500, fontSize: '0.9rem' }}>{user.name}</div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{user.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: '1rem 1.5rem' }}>
+                        <CustomRoleDropdown 
+                          value={user.role} 
+                          onChange={(val) => {
+                            setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, role: val } : u));
+                          }}
+                        />
+                      </td>
+                      <td style={{ padding: '1rem 1.5rem' }}>
+                        <span style={{ 
+                          fontSize: '0.75rem', 
+                          padding: '0.2rem 0.6rem', 
+                          borderRadius: '12px', 
+                          fontWeight: 600, 
+                          background: user.status === 'Active' ? 'rgba(52, 211, 153, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+                          color: user.status === 'Active' ? 'var(--success)' : 'var(--danger)'
+                        }}>
+                          {user.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                          <button 
+                            className="icon-btn" 
+                            title={user.status === 'Active' ? 'Suspend' : 'Activate'}
+                            onClick={() => {
+                              setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, status: u.status === 'Active' ? 'Suspended' : 'Active' } : u));
+                            }}
+                            style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}
+                          >
+                            <Ban size={16} />
+                          </button>
+                          <button 
+                            className="icon-btn" 
+                            title="Delete"
+                            onClick={() => {
+                              setUsersList(prev => prev.filter(u => u.id !== user.id));
+                            }}
+                            style={{ border: 'none', background: 'transparent', color: 'var(--danger)', cursor: 'pointer' }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Role Editor Modal */}
+      {isRoleModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-card" style={{ width: '400px', padding: '2rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-main)' }}>
+                {editingRole ? 'Edit Role Details' : 'Create New Role'}
+              </h3>
+              <button onClick={() => setIsRoleModalOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Role Name</label>
+                <input 
+                  type="text" 
+                  defaultValue={editingRole?.name || ''}
+                  style={{ width: '100%', padding: '0.75rem', background: 'rgba(var(--overlay-color), 0.03)', border: '1px solid var(--panel-border)', borderRadius: '8px', color: 'var(--text-main)', fontSize: '0.9rem', outline: 'none' }}
+                  placeholder="e.g. Moderator"
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Description</label>
+                <textarea 
+                  defaultValue={editingRole?.description || ''}
+                  style={{ width: '100%', padding: '0.75rem', background: 'rgba(var(--overlay-color), 0.03)', border: '1px solid var(--panel-border)', borderRadius: '8px', color: 'var(--text-main)', fontSize: '0.9rem', outline: 'none', minHeight: '100px', resize: 'vertical' }}
+                  placeholder="Describe what this role does..."
+                />
+              </div>
+
+              {editingRole && (
+                <div style={{ padding: '1rem', background: 'rgba(var(--overlay-color), 0.03)', borderRadius: '8px', border: '1px solid var(--panel-border)' }}>
+                  <div style={{ color: 'var(--text-main)', fontWeight: 500, fontSize: '0.9rem', marginBottom: '0.25rem' }}>Advanced Options</div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
+                    Permissions for this role can be modified in the main Role Editor panel.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '0.5rem' }}>
+              <button className="btn-outline" onClick={() => setIsRoleModalOpen(false)}>Cancel</button>
+              <button className="btn" onClick={() => setIsRoleModalOpen(false)}>Save Role</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SignInPage = ({ onSignIn }: { onSignIn: (role: string) => void }) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = emailRef.current?.value.toLowerCase() || '';
+    let role = 'user';
+    if (email.includes('founder')) role = 'founder';
+    else if (email.includes('admin')) role = 'admin';
+    else if (email.includes('premium')) role = 'premium_user';
+    onSignIn(role);
+  };
+  
+  return (
+    <div style={{
+      width: '100vw',
+      height: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#050505',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      <style>{`
+        @keyframes aurora-1 {
+          0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+          50% { transform: translate(8vw, -8vh) scale(1.15) rotate(180deg); }
+          100% { transform: translate(0, 0) scale(1) rotate(360deg); }
+        }
+        @keyframes aurora-2 {
+          0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+          50% { transform: translate(-8vw, 12vh) scale(1.2) rotate(-180deg); }
+          100% { transform: translate(0, 0) scale(1) rotate(-360deg); }
+        }
+        @keyframes aurora-3 {
+          0% { transform: translate(0, 0) scale(1.1) rotate(0deg); }
+          50% { transform: translate(-12vw, -12vh) scale(0.9) rotate(90deg); }
+          100% { transform: translate(0, 0) scale(1.1) rotate(180deg); }
+        }
+      `}</style>
+
+      {/* Animated Aurora Background */}
+      <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, rgba(59,130,246,0.18) 0%, rgba(0,0,0,0) 65%)', filter: 'blur(80px)', borderRadius: '50%', zIndex: 0, animation: 'aurora-1 20s ease-in-out infinite' }} />
+      <div style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: '60vw', height: '60vw', background: 'radial-gradient(circle, rgba(139,92,246,0.15) 0%, rgba(0,0,0,0) 65%)', filter: 'blur(90px)', borderRadius: '50%', zIndex: 0, animation: 'aurora-2 25s ease-in-out infinite' }} />
+      <div style={{ position: 'absolute', top: '20%', right: '10%', width: '45vw', height: '45vw', background: 'radial-gradient(circle, rgba(14,165,233,0.12) 0%, rgba(0,0,0,0) 65%)', filter: 'blur(70px)', borderRadius: '50%', zIndex: 0, animation: 'aurora-3 22s ease-in-out infinite alternate' }} />
+      <div style={{ position: 'absolute', bottom: '10%', left: '10%', width: '45vw', height: '45vw', background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(0,0,0,0) 65%)', filter: 'blur(80px)', borderRadius: '50%', zIndex: 0, animation: 'aurora-1 28s ease-in-out infinite reverse' }} />
+      
+      {/* Subtle Grid Overlay */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize: '64px 64px', zIndex: 1, maskImage: 'radial-gradient(circle at center, black 40%, transparent 100%)', WebkitMaskImage: 'radial-gradient(circle at center, black 40%, transparent 100%)' }} />
+
+      {/* Premium Glass Card */}
+      <div className="animate-fade-in" style={{ 
+        width: 'calc(100% - 2rem)', 
+        maxWidth: '380px', 
+        padding: '2rem', 
+        borderRadius: '24px', 
+        position: 'relative', 
+        zIndex: 10, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        gap: '1.5rem',
+        background: 'rgba(255, 255, 255, 0.02)',
+        backdropFilter: 'blur(40px)',
+        WebkitBackdropFilter: 'blur(40px)',
+        border: '1px solid rgba(255, 255, 255, 0.05)',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+            <div style={{ width: '48px', height: '48px', background: 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(5,150,105,0.15) 100%)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(16,185,129,0.2)', boxShadow: '0 0 20px rgba(16,185,129,0.15)' }}>
+              <img src="/logo-online.svg" alt="Logo" style={{ width: '24px', height: '24px' }} />
+            </div>
+          </div>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem', background: 'linear-gradient(to right, #fff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Welcome Back</h1>
+          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>Sign in to continue to GrowFinTool</p>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 500 }}>Email Address</label>
+            <div style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none', display: 'flex' }}>
+                <Mail size={16} />
+              </div>
+              <input 
+                ref={emailRef}
+                type="email" 
+                required
+                defaultValue="founder@growfin.com"
+                style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.5rem', background: 'rgba(0, 0, 0, 0.2)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', color: '#f8fafc', fontSize: '0.9rem', outline: 'none', transition: 'all 0.2s', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}
+                onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.2), inset 0 2px 4px rgba(0,0,0,0.1)'; (e.target.previousSibling as HTMLElement).style.color = '#3b82f6'; }}
+                onBlur={(e) => { e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.target.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)'; (e.target.previousSibling as HTMLElement).style.color = '#64748b'; }}
+              />
+            </div>
+          </div>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <label style={{ color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 500 }}>Password</label>
+              <a href="#" style={{ color: '#10b981', fontSize: '0.8rem', textDecoration: 'none', fontWeight: 500, transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>Forgot password?</a>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none', display: 'flex' }}>
+                <Lock size={16} />
+              </div>
+              <input 
+                type={showPassword ? 'text' : 'password'} 
+                required
+                defaultValue="password123"
+                style={{ width: '100%', padding: '0.75rem 2.5rem', background: 'rgba(0, 0, 0, 0.2)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', color: '#f8fafc', fontSize: '0.9rem', outline: 'none', transition: 'all 0.2s', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}
+                onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.2), inset 0 2px 4px rgba(0,0,0,0.1)'; (e.target.previousSibling as HTMLElement).style.color = '#3b82f6'; }}
+                onBlur={(e) => { e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.target.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)'; (e.target.previousSibling as HTMLElement).style.color = '#64748b'; }}
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '0.875rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.2rem', transition: 'color 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#cbd5e1'}
+                onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+          
+          <button type="submit" style={{ width: '100%', padding: '0.75rem', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 600, marginTop: '0.25rem', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', color: '#ffffff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)', transition: 'all 0.2s', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255,255,255,0.2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)'; }}
+          >
+            Sign In
+          </button>
+        </form>
+
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1))' }} />
+            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, letterSpacing: '0.5px' }}>OR CONTINUE WITH</span>
+            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(270deg, transparent, rgba(255,255,255,0.1))' }} />
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button type="button" style={{ flex: 1, padding: '0.65rem', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', color: '#f8fafc', fontSize: '0.9rem', fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }} 
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }} 
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}>
+              <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+              Google
+            </button>
+            <button type="button" style={{ flex: 1, padding: '0.65rem', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', color: '#f8fafc', fontSize: '0.9rem', fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }} 
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }} 
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}>
+              <svg width="16" height="16" viewBox="0 0 384 512" fill="#ffffff"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.1-44.6-35.9-2.8-74.3 22.7-93.1 22.7-18.9 0-50-22.3-78.5-21.8-37.1.6-71.5 21.6-90.8 54.8-39.7 68.3-10.2 169.5 28.4 225.4 18.9 27.5 41.5 58.2 71.5 57 28.9-1.2 39.9-18.9 74.8-18.9 34.6 0 44.8 18.9 75.3 18.4 31.4-.5 50.7-28.5 69-55.7 21.3-31.5 30.1-62 30.7-63.5-1.1-.4-43-16.1-43.2-89zM250.7 87.2C267.4 66.8 277 39.4 273.7 12 250 13 221 27.3 203.4 47.7c-15.6 18-27 45.6-22.8 72 25.4 2 51.5-14.7 70.1-32.5z"/></svg>
+              Apple
+            </button>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center', fontSize: '0.9rem', color: '#94a3b8', marginTop: '0.5rem' }}>
+          Don't have an account? <a href="#" style={{ color: '#10b981', textDecoration: 'none', fontWeight: 600, transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>Request Access</a>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function App() {
+  const [rolePermissions, setRolePermissions] = useState<Record<string, Record<string, boolean>>>({
+    'founder': {
+      'Manage Users': true, 'Manage Roles': true, 'System Settings': true,
+      'Create Articles': true, 'Edit Articles': true, 'Delete Articles': true, 'Publish Articles': true,
+      'View Dashboards': true, 'Export Data': true, 'Manage Alerts': true
+    },
+    'admin': {
+      'Manage Users': true, 'Manage Roles': false, 'System Settings': true,
+      'Create Articles': true, 'Edit Articles': true, 'Delete Articles': true, 'Publish Articles': true,
+      'View Dashboards': true, 'Export Data': true, 'Manage Alerts': true
+    },
+    'premium_user': {
+      'Manage Users': false, 'Manage Roles': false, 'System Settings': false,
+      'Create Articles': false, 'Edit Articles': false, 'Delete Articles': false, 'Publish Articles': false,
+      'View Dashboards': false, 'Export Data': false, 'Manage Alerts': false
+    },
+    'user': {
+      'Manage Users': false, 'Manage Roles': false, 'System Settings': false,
+      'Create Articles': false, 'Edit Articles': false, 'Delete Articles': false, 'Publish Articles': false,
+      'View Dashboards': false, 'Export Data': false, 'Manage Alerts': false
+    }
+  });
+  const [roles, setRoles] = useState([
+    { id: 'founder', name: 'Founder', description: 'The highest level of system authority, acting as the ultimate owner of the platform.' },
+    { id: 'admin', name: 'Admin', description: 'High-level operational management, responsible for day-to-day platform governance and user moderation.' },
+    { id: 'premium_user', name: 'Premium User', description: 'Elevated user status granted access to advanced or monetized platform capabilities.' },
+    { id: 'user', name: 'User', description: 'Baseline platform participant.' }
+  ]);
+  const [currentUserRole, setCurrentUserRole] = useState('founder');
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -409,21 +1066,35 @@ function App() {
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
   ];
 
-  const adminNavItems: { id: string; label: string; icon: ReactNode; subItems?: { id: string; label: string; icon: ReactNode }[] }[] = [
-    { 
-      id: 'admin', 
-      label: 'Admin Controls', 
+  const adminNavItems: { id: string; label: string; icon: ReactNode; subItems?: { id: string; label: string; icon: ReactNode }[] }[] = [];
+  
+  const adminSubItems = [];
+  if (rolePermissions[currentUserRole]?.['Manage Roles']) {
+    adminSubItems.push({ id: 'role-manager', label: 'Role Manager', icon: <Users size={14} /> });
+  }
+  if (rolePermissions[currentUserRole]?.['System Settings']) {
+    adminSubItems.push({ id: 'system-manager', label: 'System Manager', icon: <Sliders size={14} /> });
+  }
+
+  if (adminSubItems.length > 0) {
+    adminNavItems.push({
+      id: 'admin',
+      label: 'Admin Controls',
       icon: <Shield size={16} />,
-      subItems: [
-        { id: 'role-manager', label: 'Role Manager', icon: <Users size={14} /> },
-        { id: 'system-manager', label: 'System Manager', icon: <Sliders size={14} /> }
-      ]
-    }
-  ];
+      subItems: adminSubItems
+    });
+  }
 
 
 
   const effectivelyCollapsed = isCollapsed && !isMobileMenuOpen;
+
+  if (!isAuthenticated) {
+    return <SignInPage onSignIn={(role) => {
+      setCurrentUserRole(role);
+      setIsAuthenticated(true);
+    }} />;
+  }
 
   return (
     <div className="app-container" style={isMobileScreen ? undefined : {
@@ -439,7 +1110,7 @@ function App() {
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         >
           <div className="logo-icon" style={{ background: 'transparent', boxShadow: 'none' }}>
-            <img src="/logo-online.svg" alt="GrowFinTool Logo" style={{ width: '24px', height: '24px', filter: 'var(--logo-filter)' }} id="mobile-header-logo-img" />
+            <img src="/logo-online.svg" alt="GrowFinTool Logo" style={{ width: '24px', height: '24px', filter: getRoleLogoFilter(currentUserRole) }} id="mobile-header-logo-img" />
           </div>
           <span className="sidebar-text">GrowFinTool</span>
         </div>
@@ -457,7 +1128,7 @@ function App() {
           {!isMobileMenuOpen && (
             <div className="sidebar-logo animate-fade-in delay-1" onClick={() => setIsCollapsed(!isCollapsed)} style={{ cursor: 'pointer', position: 'relative' }}>
               <div className="logo-icon" style={{ background: 'transparent', boxShadow: 'none' }}>
-                <img src="/logo-online.svg" alt="GrowFinTool Logo" style={{ width: '24px', height: '24px', filter: 'var(--logo-filter)' }} id="sidebar-logo-img" />
+                <img src="/logo-online.svg" alt="GrowFinTool Logo" style={{ width: '24px', height: '24px', filter: getRoleLogoFilter(currentUserRole) }} id="sidebar-logo-img" />
               </div>
               {!effectivelyCollapsed && <span className="sidebar-text">GrowFinTool</span>}
               {effectivelyCollapsed && <span className="nav-tooltip">GrowFinTool</span>}
@@ -595,7 +1266,7 @@ function App() {
                     <User size={16} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Rashid Shahriyar</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>{roles.find(r => r.id === currentUserRole)?.name || 'User'}</span>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>View Profile</span>
                   </div>
                 </div>
@@ -603,7 +1274,7 @@ function App() {
                 <a className="menu-item"><CreditCard size={14} /> Manage Subscription</a>
                 <a className="menu-item"><HelpCircle size={14} /> Help & Support</a>
                 <div className="menu-divider"></div>
-                <a className="menu-item text-danger"><LogOut size={14} /> Log Out</a>
+                <a className="menu-item text-danger" onClick={() => { setIsAuthenticated(false); setIsProfileMenuOpen(false); }} style={{ cursor: 'pointer' }}><LogOut size={14} /> Log Out</a>
               </div>
             )}
             
@@ -634,8 +1305,8 @@ function App() {
               {effectivelyCollapsed && <span className="nav-tooltip">Profile</span>}
               {!effectivelyCollapsed && (
                 <div className="profile-info animate-fade-in">
-                  <span className="profile-name">Rashid Shahriyar</span>
-                  <span className="profile-role">Admin</span>
+                  <span className="profile-name">Active Account</span>
+                  <span className="profile-role">{roles.find(r => r.id === currentUserRole)?.name || 'User'}</span>
                 </div>
               )}
               {!effectivelyCollapsed && (
@@ -674,16 +1345,7 @@ function App() {
             </div>
           </div>
         ) : activeTab === 'role-manager' ? (
-          <div className="settings-page animate-fade-in" style={{ justifyContent: 'center', height: '100%' }}>
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-              <Users size={48} style={{ opacity: 0.2, margin: '0 auto 1rem auto', display: 'block' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center', marginBottom: '0.5rem' }}>
-                <h2 style={{ margin: 0 }}>Role Manager</h2>
-                <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem', background: 'rgba(var(--overlay-color), 0.1)', borderRadius: '12px', fontWeight: 600, color: 'var(--text-main)' }}>Coming Soon</span>
-              </div>
-              <p>Advanced role and permissions management is currently under development.</p>
-            </div>
-          </div>
+          <RoleManager rolePermissions={rolePermissions} setRolePermissions={setRolePermissions} roles={roles} setRoles={setRoles} />
         ) : activeTab === 'system-manager' ? (
           <div className="system-manager-layout animate-fade-in">
             {/* Left Sidebar (1) */}
