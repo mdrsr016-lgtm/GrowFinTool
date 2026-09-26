@@ -64,7 +64,7 @@ const BgConfigCard: React.FC<BgConfigCardProps> = ({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         {/* Top: Preview Area */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'stretch' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', width: '100%' }}>
             <input 
               type="text" 
               className="input-field" 
@@ -426,7 +426,7 @@ function App() {
   const effectivelyCollapsed = isCollapsed && !isMobileMenuOpen;
 
   return (
-    <div className="app-container" style={{
+    <div className="app-container" style={isMobileScreen ? undefined : {
       width: `${appWidth}vw`,
       height: `${appHeight}vh`,
       borderRadius: `${appRadius}px`
@@ -717,7 +717,7 @@ function App() {
             {/* Right Content Area (2) */}
             <div className="system-manager-content">
               {systemManagerSection === 'appearance' ? (
-                <div className="animate-fade-in" style={{ padding: '1.5rem', color: 'var(--text-muted)' }}>
+                <div className="animate-fade-in" style={{ color: 'var(--text-muted)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
                     <Palette size={24} style={{ color: 'var(--text-main)' }} />
                     <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.25rem' }}>Appearance Options</h2>
@@ -725,42 +725,44 @@ function App() {
                   
                   <div className="settings-grid" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '600px' }}>
                     
-                    <div className="setting-card" style={{ background: 'var(--panel-bg)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
-                      <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', fontSize: '1rem' }}>App Dimensions</h3>
-                      
-                      <div className="slider-group" style={{ marginBottom: '1.5rem' }}>
-                        <label>
-                          <span>Window Width (vw)</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setAppWidth(95)}>Reset</span>
-                            <span>{appWidth}vw</span>
-                          </div>
-                        </label>
-                        <input type="range" min="50" max="100" value={appWidth} onChange={e => setAppWidth(parseInt(e.target.value))} />
+                    {!isMobileScreen && (
+                      <div className="setting-card" style={{ background: 'var(--panel-bg)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
+                        <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', fontSize: '1rem' }}>App Dimensions</h3>
+                        
+                        <div className="slider-group" style={{ marginBottom: '1.5rem' }}>
+                          <label>
+                            <span>Window Width (vw)</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setAppWidth(95)}>Reset</span>
+                              <span>{appWidth}vw</span>
+                            </div>
+                          </label>
+                          <input type="range" min="50" max="100" value={appWidth} onChange={e => setAppWidth(parseInt(e.target.value))} />
+                        </div>
+                        
+                        <div className="slider-group" style={{ marginBottom: '1.5rem' }}>
+                          <label>
+                            <span>Window Height (vh)</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setAppHeight(92)}>Reset</span>
+                              <span>{appHeight}vh</span>
+                            </div>
+                          </label>
+                          <input type="range" min="50" max="100" value={appHeight} onChange={e => setAppHeight(parseInt(e.target.value))} />
+                        </div>
+  
+                        <div className="slider-group">
+                          <label>
+                            <span>Border Radius (px)</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setAppRadius(20)}>Reset</span>
+                              <span>{appRadius}px</span>
+                            </div>
+                          </label>
+                          <input type="range" min="0" max="50" value={appRadius} onChange={e => setAppRadius(parseInt(e.target.value))} />
+                        </div>
                       </div>
-                      
-                      <div className="slider-group" style={{ marginBottom: '1.5rem' }}>
-                        <label>
-                          <span>Window Height (vh)</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setAppHeight(92)}>Reset</span>
-                            <span>{appHeight}vh</span>
-                          </div>
-                        </label>
-                        <input type="range" min="50" max="100" value={appHeight} onChange={e => setAppHeight(parseInt(e.target.value))} />
-                      </div>
-
-                      <div className="slider-group">
-                        <label>
-                          <span>Border Radius (px)</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setAppRadius(20)}>Reset</span>
-                            <span>{appRadius}px</span>
-                          </div>
-                        </label>
-                        <input type="range" min="0" max="50" value={appRadius} onChange={e => setAppRadius(parseInt(e.target.value))} />
-                      </div>
-                    </div>
+                    )}
 
                     <div className="setting-card" style={{ background: 'var(--panel-bg)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
                       <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', fontSize: '1rem' }}>Theme & Colors</h3>
@@ -793,7 +795,7 @@ function App() {
                               setBackgroundType('custom');
                               setIsBgModalOpen(true);
                             }}
-                            style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                            style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                           >
                             <ImageIcon size={14} /> Configure Image
                           </button>
@@ -803,7 +805,7 @@ function App() {
                               setBackgroundType('dark-black');
                               setCustomBgUrl('');
                             }}
-                            style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+                            style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem', padding: '0.5rem 1rem' }}
                           >
                             Remove Image
                           </button>
@@ -830,7 +832,7 @@ function App() {
                   </div>
                 </div>
               ) : systemManagerSection === 'general' ? (
-                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
+                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '300px', color: 'var(--text-muted)' }}>
                   <Settings size={48} style={{ opacity: 0.2, margin: '0 auto 1rem auto' }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center', marginBottom: '0.5rem' }}>
                     <h2 style={{ margin: 0, color: 'var(--text-main)' }}>General Settings</h2>
@@ -839,7 +841,7 @@ function App() {
                   <p>Core system configuration and defaults will be available here.</p>
                 </div>
               ) : systemManagerSection === 'security' ? (
-                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
+                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '300px', color: 'var(--text-muted)' }}>
                   <Shield size={48} style={{ opacity: 0.2, margin: '0 auto 1rem auto' }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center', marginBottom: '0.5rem' }}>
                     <h2 style={{ margin: 0, color: 'var(--text-main)' }}>Security & Access</h2>
@@ -862,18 +864,20 @@ function App() {
               <button className="close-btn" onClick={() => setIsBgModalOpen(false)}><X size={20} /></button>
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
-              <BgConfigCard 
-                title="Desktop Background"
-                icon={<Monitor size={18} />}
-                type="desktop"
-                url={customBgUrl} setUrl={setCustomBgUrl}
-                rotate={customBgRotate} setRotate={setCustomBgRotate}
-                scale={customBgScale} setScale={setCustomBgScale}
-                blur={customBgBlur} setBlur={setCustomBgBlur}
-                offsetX={customBgOffsetX} setOffsetX={setCustomBgOffsetX}
-                offsetY={customBgOffsetY} setOffsetY={setCustomBgOffsetY}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', gap: '2rem' }}>
+              {!isMobileScreen && (
+                <BgConfigCard 
+                  title="Desktop Background"
+                  icon={<Monitor size={18} />}
+                  type="desktop"
+                  url={customBgUrl} setUrl={setCustomBgUrl}
+                  rotate={customBgRotate} setRotate={setCustomBgRotate}
+                  scale={customBgScale} setScale={setCustomBgScale}
+                  blur={customBgBlur} setBlur={setCustomBgBlur}
+                  offsetX={customBgOffsetX} setOffsetX={setCustomBgOffsetX}
+                  offsetY={customBgOffsetY} setOffsetY={setCustomBgOffsetY}
+                />
+              )}
               <BgConfigCard 
                 title="Mobile Portrait Background"
                 icon={<Smartphone size={18} />}

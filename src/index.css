@@ -136,10 +136,12 @@ p {
   display: flex;
   width: calc(100vw - 5vh);
   height: 95vh;
-  background-color: var(--bg-color);
+  background-color: color-mix(in srgb, var(--bg-color) 60%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-radius: 1.5rem;
   box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--panel-border);
   overflow: hidden;
   position: relative;
   z-index: 10;
@@ -426,6 +428,7 @@ p {
   background: transparent;
   border-color: transparent;
   border-radius: 50%;
+  margin: 0 auto;
 }
 
 .sidebar-profile.collapsed:not(:has(.profile-settings-btn:hover)):hover {
@@ -1310,7 +1313,7 @@ p {
 .modal-card {
   width: 90%;
   max-width: 500px;
-  background: var(--panel-bg);
+  background: color-mix(in srgb, var(--bg-color) 70%, transparent);
   border: 1px solid var(--panel-border);
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
@@ -1520,6 +1523,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   flex: 1;
   overflow-y: auto;
   position: relative;
+  padding: 1.5rem;
 }
 
 @media (max-width: 768px) {
@@ -1548,5 +1552,9 @@ input[type="range"]::-webkit-slider-thumb:hover {
   .system-nav-item {
     white-space: nowrap;
     padding: 0.5rem 1rem;
+  }
+
+  .system-manager-content {
+    padding: 0;
   }
 }
