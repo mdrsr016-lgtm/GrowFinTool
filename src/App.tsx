@@ -411,6 +411,7 @@ export const APP_MODULES = [
     isTopLevel: false,
     placement: 'bottom',
     items: [
+      { id: 'project-profile', label: 'Project Profile', permission: 'Project Profile', icon: <User size={14} /> },
       { id: 'role-manager', label: 'Users And Roles', permission: 'Manage Roles', icon: <Users size={14} /> },
       { id: 'system-manager', label: 'System Manager', permission: 'System Settings', icon: <Sliders size={14} /> }
     ]
@@ -1453,16 +1454,16 @@ const SignInPage = ({ onSignIn, onRequestAccess }: { onSignIn: (role: string) =>
 function App() {
   const [rolePermissions, setRolePermissions] = useState<Record<string, Record<string, boolean>>>({
     'founder': {
-      'Manage Roles': true, 'System Settings': true, 'View Dashboard': true
+      'Manage Roles': true, 'System Settings': true, 'View Dashboard': true, 'Project Profile': true
     },
     'admin': {
-      'Manage Roles': false, 'System Settings': true, 'View Dashboard': true
+      'Manage Roles': false, 'System Settings': true, 'View Dashboard': true, 'Project Profile': true
     },
     'premium_user': {
-      'Manage Roles': false, 'System Settings': false, 'View Dashboard': true
+      'Manage Roles': false, 'System Settings': false, 'View Dashboard': true, 'Project Profile': false
     },
     'user': {
-      'Manage Roles': false, 'System Settings': false, 'View Dashboard': true
+      'Manage Roles': false, 'System Settings': false, 'View Dashboard': true, 'Project Profile': false
     }
   });
   const [roles, setRoles] = useState([
@@ -1502,7 +1503,42 @@ function App() {
   const [mobileBgOffsetY, setMobileBgOffsetY] = useState(0);
   const [isMobileScreen, setIsMobileScreen] = useState(window.innerWidth <= 768);
   const [systemManagerSection, setSystemManagerSection] = useState(() => localStorage.getItem('systemManagerSection') || 'appearance');
-  
+  const [projectProfile, setProjectProfile] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('projectProfile') || 'null') || {
+      name: 'GrowFinTool',
+      tagline: 'Financial management platform for modern teams',
+      description: 'GrowFinTool is a comprehensive financial management solution designed to streamline reporting, role management, and system configuration for growing businesses.',
+      website: 'https://growfintool.vercel.app',
+      email: 'founder@growfin.com',
+      industry: 'FinTech',
+      founded: '2024',
+      stage: 'MVP',
+      logoUrl: '',
+    }; } catch { return {
+      name: 'GrowFinTool', tagline: '', description: '', website: '', email: '', industry: '', founded: '', stage: 'MVP', logoUrl: ''
+    }; }
+  });
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileDraft, setProfileDraft] = useState(projectProfile);
+  const [projectProfileTab, setProjectProfileTab] = useState('overview');
+  const [projectMembers] = useState([
+    { id: '1', name: 'Alex Johnson', role: 'Owner · Admin', email: 'alex.johnson@example.com', isYou: true },
+    { id: '2', name: 'Sarah Wilson', role: 'Member', email: 'sarah.wilson@example.com', isYou: false },
+    { id: '3', name: 'Michael Brown', role: 'Member', email: 'michael.brown@example.com', isYou: false },
+    { id: '4', name: 'Emma Davis', role: 'Member', email: 'emma.davis@example.com', isYou: false },
+  ]);
+  const [projectGoals] = useState([
+    { id: '1', title: 'Emergency Fund', current: 2100, target: 5000, due: 'Dec 2026', color: '#10b981' },
+    { id: '2', title: 'New Laptop', current: 450, target: 1200, due: 'Nov 2026', color: '#6366f1' },
+    { id: '3', title: 'Vacation', current: 800, target: 2000, due: 'Jan 2027', color: '#8b5cf6' },
+  ]);
+  const [projectActivity] = useState([
+    { id: '1', text: 'Alex updated project goals', sub: 'Added 1 new goal: Vacation', time: '2 hours ago', color: '#10b981' },
+    { id: '2', text: 'You added a new bill', sub: 'Internet · $65', time: '5 hours ago', color: '#6366f1' },
+    { id: '3', text: 'Alex updated their profile', sub: 'Changed profile picture', time: '1 day ago', color: '#f59e0b' },
+    { id: '4', text: 'You completed a task', sub: 'Review 2 unused subscriptions', time: '2 days ago', color: '#8b5cf6' },
+  ]);
+
   useEffect(() => {
     localStorage.setItem('systemManagerSection', systemManagerSection);
   }, [systemManagerSection]);
@@ -1815,7 +1851,7 @@ function App() {
         </div>
         
         <div className="nav-scroll-area">
-          <nav className="nav-menu animate-fade-in delay-2" style={{ marginTop: '2rem' }}>
+          <nav className="nav-menu animate-fade-in delay-2" style={{ marginTop: '2rem', width: '100%' }}>
             {renderNavItems(topNavItems)}
           </nav>
         </div>
@@ -2081,6 +2117,362 @@ function App() {
                 </div>
               ) : null}
             </div>
+          </div>
+        ) : activeTab === 'project-profile' ? (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '0.5rem 0.5rem 2rem' }}>
+
+            {/* Page Header */}
+            <div style={{ padding: '1.5rem 2rem 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <User size={18} style={{ color: '#818cf8' }} />
+                </div>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>Project Profile</h1>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>Manage your project details, members, and settings.</p>
+                </div>
+              </div>
+              {rolePermissions[currentUserRole]?.['System Settings'] && (
+                isEditingProfile ? (
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button className="btn-outline" onClick={() => { setIsEditingProfile(false); setProfileDraft(projectProfile); }}>Cancel</button>
+                    <button className="btn" onClick={() => { setProjectProfile(profileDraft); localStorage.setItem('projectProfile', JSON.stringify(profileDraft)); setIsEditingProfile(false); }}>Save Changes</button>
+                  </div>
+                ) : (
+                  <button className="btn-outline" onClick={() => { setProfileDraft(projectProfile); setIsEditingProfile(true); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem' }}>
+                    <Settings size={13} /> Edit Profile
+                  </button>
+                )
+              )}
+            </div>
+
+            {/* Hero Banner */}
+              <div style={{ borderRadius: '16px', border: '1px solid var(--panel-border)', overflow: 'hidden', position: 'relative', background: 'var(--panel-bg)' }}>
+                {/* Background gradient */}
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.12) 50%, rgba(16,185,129,0.06) 100%)', pointerEvents: 'none' }} />
+                {/* Mountain-style SVG backdrop */}
+                <svg style={{ position: 'absolute', right: 0, bottom: 0, height: '100%', opacity: 0.07 }} viewBox="0 0 400 160" preserveAspectRatio="xMaxYMax meet">
+                  <path d="M0 160 L80 60 L140 100 L200 20 L270 90 L330 50 L400 80 L400 160Z" fill="#6366f1" />
+                  <path d="M100 160 L170 80 L230 110 L290 40 L360 100 L400 70 L400 160Z" fill="#8b5cf6" />
+                </svg>
+                <div style={{ position: 'relative', padding: '1.75rem 2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                  {/* Logo */}
+                  <div style={{ width: '72px', height: '72px', borderRadius: '18px', background: 'linear-gradient(135deg, #1e1b4b, #312e81)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(99,102,241,0.3)', flexShrink: 0, overflow: 'hidden' }}>
+                    {projectProfile.logoUrl
+                      ? <img src={projectProfile.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <img src="/logo-online.svg" alt="Logo" style={{ width: '40px', height: '40px', filter: 'brightness(10) hue-rotate(200deg)' }} />
+                    }
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
+                      <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-main)' }}>{projectProfile.name}</h2>
+                      <span style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', borderRadius: '999px', padding: '0.2rem 0.75rem', fontSize: '0.72rem', fontWeight: 600, border: '1px solid rgba(99,102,241,0.25)' }}>{projectProfile.industry || 'General'}</span>
+                    </div>
+                    <p style={{ margin: '0 0 1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>{projectProfile.tagline || 'No tagline set.'}</p>
+                    <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                      {[{icon: '🔒', label: 'Private Project', sub: 'Only you and invited members'}, {icon: '📅', label: 'Created', sub: `Jan ${projectProfile.founded || '2024'}`}, {icon: '🆔', label: 'Project ID', sub: 'GFT-2025-001'}].map(m => (
+                        <div key={m.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '1rem' }}>{m.icon}</span>
+                          <div>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-main)' }}>{m.label}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{m.sub}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tab Bar */}
+              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--panel-border)', flexShrink: 0 }}>
+                {['overview','members','settings','activity'].map(tab => (
+                  <button key={tab} onClick={() => setProjectProfileTab(tab)} style={{ background: 'none', border: 'none', padding: '0.6rem 1.25rem', fontSize: '0.85rem', fontWeight: 500, cursor: 'pointer', color: projectProfileTab === tab ? 'var(--accent)' : 'var(--text-muted)', borderBottom: projectProfileTab === tab ? '2px solid var(--accent)' : '2px solid transparent', marginBottom: '-1px', transition: 'all 0.15s', textTransform: 'capitalize' }}>
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Overview tab - 3 column grid */}
+              {projectProfileTab === 'overview' && (
+                <div style={{ display: 'grid', gridTemplateColumns: isMobileScreen ? '1fr' : '1fr 1fr 300px', gap: '1.25rem', alignItems: 'start' }}>
+
+                  {/* COL 1 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+                    {/* Project Details */}
+                    <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', borderRadius: '14px', padding: '1.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                          <User size={15} style={{ color: 'var(--accent)' }} /> Project Details
+                        </div>
+                        {rolePermissions[currentUserRole]?.['System Settings'] && (
+                          <button onClick={() => { setProfileDraft(projectProfile); setIsEditingProfile(!isEditingProfile); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.5rem', borderRadius: '6px' }}>
+                            <Settings size={12} /> {isEditingProfile ? 'Done' : 'Edit'}
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                        {[
+                          { label: 'Name', value: projectProfile.name, key: 'name' as const },
+                          { label: 'Description', value: projectProfile.description, key: 'description' as const, textarea: true },
+                          { label: 'Category', value: projectProfile.industry, key: 'industry' as const, badge: true },
+                          { label: 'Visibility', value: 'Private', key: null as null },
+                          { label: 'Created', value: `Jan ${projectProfile.founded || '2024'}`, key: null as null },
+                          { label: 'Last updated', value: 'Sep 24, 2025', key: null as null },
+                        ].map(row => (
+                          <div key={row.label} style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.5rem', alignItems: 'flex-start' }}>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', paddingTop: '0.1rem' }}>{row.label}</div>
+                            <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 500 }}>
+                              {isEditingProfile && row.key ? (
+                                row.textarea
+                                  ? <textarea value={profileDraft[row.key] as string} onChange={e => setProfileDraft((p: typeof projectProfile) => ({...p, [row.key!]: e.target.value}))} rows={2} style={{ width: '100%', background: 'rgba(var(--overlay-color),0.05)', border: '1px solid var(--panel-border)', borderRadius: '6px', padding: '0.4rem 0.6rem', color: 'var(--text-main)', fontSize: '0.82rem', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                                  : <input value={profileDraft[row.key] as string} onChange={e => setProfileDraft((p: typeof projectProfile) => ({...p, [row.key!]: e.target.value}))} style={{ width: '100%', background: 'rgba(var(--overlay-color),0.05)', border: '1px solid var(--panel-border)', borderRadius: '6px', padding: '0.4rem 0.6rem', color: 'var(--text-main)', fontSize: '0.82rem', boxSizing: 'border-box' }} />
+                              ) : row.badge ? (
+                                <span style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8', borderRadius: '999px', padding: '0.15rem 0.6rem', fontSize: '0.75rem', fontWeight: 600 }}>{row.value || '—'}</span>
+                              ) : (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  {row.label === 'Visibility' && <span>🔒</span>}
+                                  {row.label === 'Created' && <span>📅</span>}
+                                  {row.label === 'Last updated' && <span>📅</span>}
+                                  {row.value}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {isEditingProfile && (
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                          <button className="btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem' }} onClick={() => setIsEditingProfile(false)}>Cancel</button>
+                          <button className="btn" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem' }} onClick={() => { setProjectProfile(profileDraft); localStorage.setItem('projectProfile', JSON.stringify(profileDraft)); setIsEditingProfile(false); }}>Save</button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Recent Activity */}
+                    <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', borderRadius: '14px', padding: '1.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                          🕐 Recent Activity
+                        </div>
+                        <button onClick={() => setProjectProfileTab('activity')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: '0.78rem' }}>View all →</button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                        {projectActivity.map(a => (
+                          <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                            <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: `${a.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: a.color }} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-main)' }}>{a.text}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{a.sub}</div>
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', flexShrink: 0 }}>{a.time}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* COL 2 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+                    {/* Project Goals */}
+                    <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', borderRadius: '14px', padding: '1.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                          🎯 Project Goals
+                        </div>
+                        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: '0.78rem' }}>View all →</button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+                        {projectGoals.map(g => {
+                          const pct = Math.round((g.current / g.target) * 100);
+                          return (
+                            <div key={g.id}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: `${g.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: g.color }} />
+                                  </div>
+                                  <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)' }}>{g.title}</span>
+                                </div>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Due {g.due}</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>${g.current.toLocaleString()} / ${g.target.toLocaleString()}</span>
+                                <span style={{ fontSize: '0.72rem', color: g.color, fontWeight: 600 }}>{pct}%</span>
+                              </div>
+                              <div style={{ height: '6px', background: 'rgba(var(--overlay-color),0.08)', borderRadius: '999px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${g.color}aa, ${g.color})`, borderRadius: '999px', transition: 'width 0.6s ease' }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', borderRadius: '14px', padding: '1.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '1.1rem' }}>
+                        ⚡ Quick Actions
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        {[
+                          { icon: '👥', label: 'Add Member', sub: 'Invite someone to your project' },
+                          { icon: '🎯', label: 'Add Goal', sub: 'Set a new financial goal' },
+                          { icon: '💳', label: 'Add Bill', sub: 'Track a recurring bill' },
+                          { icon: '📝', label: 'Add Note', sub: 'Save important notes' },
+                        ].map(a => (
+                          <button key={a.label} style={{ background: 'rgba(var(--overlay-color),0.04)', border: '1px solid var(--panel-border)', borderRadius: '10px', padding: '0.85rem', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(var(--overlay-color),0.08)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(var(--overlay-color),0.04)')}>
+                            <div style={{ fontSize: '1.3rem', marginBottom: '0.4rem' }}>{a.icon}</div>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.2rem' }}>{a.label}</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>{a.sub}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* COL 3 - Right Panel */}
+                  {!isMobileScreen && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+                      {/* Project Members */}
+                      <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', borderRadius: '14px', padding: '1.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)' }}>
+                            <Users size={14} style={{ color: 'var(--accent)' }} /> Project Members
+                          </div>
+                          <button onClick={() => setProjectProfileTab('members')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: '0.75rem' }}>Manage</button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                          {projectMembers.map(m => (
+                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                              <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: `hsl(${m.id.charCodeAt(0) * 40}, 60%, 35%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.8rem', fontWeight: 700, color: '#fff' }}>
+                                {m.name.split(' ').map(n => n[0]).join('')}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)' }}>{m.name}</span>
+                                  {m.isYou && <span style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', borderRadius: '4px', padding: '0.05rem 0.4rem', fontSize: '0.65rem', fontWeight: 600 }}>You</span>}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{m.role}</div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--accent)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
+                              </div>
+                              {!m.isYou && <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}>···</button>}
+                            </div>
+                          ))}
+                        </div>
+                        <button style={{ width: '100%', marginTop: '1rem', padding: '0.5rem', background: 'none', border: '1px dashed var(--panel-border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--accent)', fontSize: '0.8rem', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                          + Invite Member
+                        </button>
+                      </div>
+
+                      {/* Project Settings */}
+                      <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', borderRadius: '14px', padding: '1.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)', marginBottom: '0.9rem' }}>
+                          <Settings size={14} style={{ color: 'var(--accent)' }} /> Project Settings
+                        </div>
+                        {[
+                          { icon: '⚙️', label: 'General Settings', sub: 'Name, description, visibility' },
+                          { icon: '🔒', label: 'Privacy & Security', sub: 'Data, permissions, access', color: '' },
+                          { icon: '🔔', label: 'Notifications', sub: 'Email, push, in-app' },
+                          { icon: '🗑️', label: 'Delete Project', sub: 'Permanently remove this project', danger: true },
+                        ].map(s => (
+                          <button key={s.label} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0', borderBottom: '1px solid var(--panel-border)', textAlign: 'left' }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+                            <span style={{ fontSize: '1rem', flexShrink: 0 }}>{s.icon}</span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '0.82rem', fontWeight: 500, color: s.danger ? '#ef4444' : 'var(--text-main)' }}>{s.label}</div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{s.sub}</div>
+                            </div>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>›</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Motivational Card */}
+                      <div style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(99,102,241,0.1))', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '14px', padding: '1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.75rem' }}>
+                        <img src="/logo-online.svg" alt="" style={{ width: '36px', height: '36px', filter: 'hue-rotate(100deg) saturate(2)' }} />
+                        <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)' }}>You're doing great!</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>Small steps create big financial freedom.</div>
+                        <button className="btn" style={{ fontSize: '0.78rem', padding: '0.4rem 1rem' }}>View progress →</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Members tab */}
+              {projectProfileTab === 'members' && (
+                <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', borderRadius: '14px', padding: '1.5rem', maxWidth: '600px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                    <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main)' }}>Team Members ({projectMembers.length})</h3>
+                    <button className="btn" style={{ fontSize: '0.8rem', padding: '0.4rem 0.9rem' }}>+ Invite Member</button>
+                  </div>
+                  {projectMembers.map(m => (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 0', borderBottom: '1px solid var(--panel-border)' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: `hsl(${m.id.charCodeAt(0) * 40}, 60%, 35%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>{m.name.split(' ').map(n => n[0]).join('')}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>{m.name}</span>
+                          {m.isYou && <span style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', borderRadius: '4px', padding: '0.05rem 0.5rem', fontSize: '0.7rem', fontWeight: 600 }}>You</span>}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{m.role}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--accent)' }}>{m.email}</div>
+                      </div>
+                      {!m.isYou && <button style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '6px', padding: '0.3rem 0.65rem', cursor: 'pointer', color: '#ef4444', fontSize: '0.75rem' }}>Remove</button>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Activity tab */}
+              {projectProfileTab === 'activity' && (
+                <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', borderRadius: '14px', padding: '1.5rem', maxWidth: '600px' }}>
+                  <h3 style={{ margin: '0 0 1.25rem', fontSize: '1rem', color: 'var(--text-main)' }}>Recent Activity</h3>
+                  {projectActivity.map(a => (
+                    <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', padding: '0.85rem 0', borderBottom: '1px solid var(--panel-border)' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: `${a.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: a.color }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-main)' }}>{a.text}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{a.sub}</div>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flexShrink: 0 }}>{a.time}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Settings tab */}
+              {projectProfileTab === 'settings' && (
+                <div style={{ maxWidth: '500px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {[
+                    { icon: '⚙️', label: 'General Settings', sub: 'Name, description, visibility' },
+                    { icon: '🔒', label: 'Privacy & Security', sub: 'Data, permissions, access' },
+                    { icon: '🔔', label: 'Notifications', sub: 'Email, push, in-app' },
+                    { icon: '🗑️', label: 'Delete Project', sub: 'Permanently remove this project', danger: true },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: 'var(--panel-bg)', border: `1px solid ${s.danger ? 'rgba(239,68,68,0.2)' : 'var(--panel-border)'}`, borderRadius: '12px', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}
+                      onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')} onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+                      <span style={{ fontSize: '1.3rem' }}>{s.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: s.danger ? '#ef4444' : 'var(--text-main)' }}>{s.label}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{s.sub}</div>
+                      </div>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>›</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
           </div>
         ) : null}
       </main>

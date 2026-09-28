@@ -142,7 +142,10 @@ p {
   border-radius: 1.5rem;
   box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
   border: 1px solid var(--panel-border);
-  overflow: hidden;
+  /* clip-path preserves border-radius rounding without blocking backdrop-filter
+     (overflow:hidden blocks backdrop-filter on mobile browsers) */
+  clip-path: inset(0 round 1.5rem);
+  overflow: clip;
   position: relative;
   z-index: 10;
 }
@@ -156,6 +159,9 @@ p {
   background: var(--panel-bg);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  /* isolation:isolate creates a new stacking context so the blur
+     composites against the content behind the sidebar, not the parent */
+  isolation: isolate;
   border-right: 1px solid var(--panel-border);
   padding: 2rem 1.5rem;
   display: flex;
@@ -166,6 +172,8 @@ p {
 
 .nav-scroll-area {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
@@ -210,6 +218,7 @@ p {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  width: 100%;
 }
 
 .nav-item {
@@ -225,6 +234,8 @@ p {
   transition: all 0.2s ease;
   cursor: pointer;
   position: relative;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .nav-item:hover {
@@ -277,6 +288,7 @@ p {
 .nav-item-group {
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 
 .nav-subitems-container {
@@ -842,6 +854,10 @@ p {
     border-radius: 0;
     border: none;
     box-shadow: none;
+    /* Reset clip-path on mobile — position:fixed sidebar would be clipped otherwise.
+       overflow:hidden is fine here since backdrop-filter isn't used inside fixed sidebars. */
+    clip-path: none;
+    overflow: hidden;
   }
   
   .mobile-header {
