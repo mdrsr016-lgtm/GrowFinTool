@@ -761,6 +761,26 @@ p {
   opacity: 0;
 }
 
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.slide-in-right {
+  animation: slideInRight 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  opacity: 0;
+}
+
+.slide-in-left {
+  animation: slideInLeft 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  opacity: 0;
+}
+
 /* Buttons */
 .btn {
   background: rgba(var(--overlay-color), 0.1);
@@ -906,7 +926,7 @@ p {
   }
 
   .main-content {
-    padding: 1.5rem 1rem;
+    padding: 1rem;
     overflow-y: auto;
   }
   
@@ -1536,10 +1556,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
     border-right: none;
     border-bottom: 1px solid var(--panel-border);
     padding-right: 0;
-    padding-bottom: 1rem;
+    padding-bottom: 0.75rem;
     margin-right: 0;
-    margin-bottom: 1rem;
-    gap: 1rem;
+    margin-bottom: 0.5rem;
+    gap: 0.5rem;
   }
   
   .system-manager-nav {
@@ -1578,4 +1598,38 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .responsive-table-container {
   overflow-x: auto;
   width: 100%;
+}
+
+.role-manager-layout {
+  padding: 0 !important;
+}
+
+.role-manager-inner-content {
+  display: flex;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.role-manager-sidebar {
+  padding: 1.5rem !important;
+  width: 320px !important;
+  min-width: 320px !important;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .role-manager-inner-content {
+    overflow: visible !important;
+    flex-direction: column !important;
+  }
+  
+  .role-manager-sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    padding: 0.5rem 0 !important;
+  }
+  
+  .role-manager-sidebar .system-manager-nav {
+    flex-direction: column !important;
+  }
 }

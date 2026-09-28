@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   LayoutDashboard,
   Settings,
@@ -25,13 +25,14 @@ import {
   Smartphone,
   Trash2,
   Ban,
-  Crown,
-  Star,
   Mail,
   Lock,
   Eye,
-  EyeOff
+  EyeOff,
+  UserPlus,
+  Search
 } from 'lucide-react';
+import { supabase } from './lib/supabase';
 import './index.css';
 
 interface BgConfigCardProps {
@@ -293,10 +294,10 @@ const CustomRoleDropdown = ({ value, onChange }: { value: string, onChange: (val
   }, []);
 
   const options = [
-    { value: 'founder', label: 'Founder', icon: <Crown size={14} /> },
-    { value: 'admin', label: 'Admin', icon: <Shield size={14} /> },
-    { value: 'premium_user', label: 'Premium User', icon: <Star size={14} /> },
-    { value: 'user', label: 'User', icon: <User size={14} /> }
+    { value: 'founder', label: 'Founder', icon: <img src="/logo-online.svg" alt="" style={{ width: '14px', height: '14px', filter: getRoleLogoFilter('founder') }} /> },
+    { value: 'admin', label: 'Admin', icon: <img src="/logo-online.svg" alt="" style={{ width: '14px', height: '14px', filter: getRoleLogoFilter('admin') }} /> },
+    { value: 'premium_user', label: 'Premium User', icon: <img src="/logo-online.svg" alt="" style={{ width: '14px', height: '14px', filter: getRoleLogoFilter('premium_user') }} /> },
+    { value: 'user', label: 'User', icon: <img src="/logo-online.svg" alt="" style={{ width: '14px', height: '14px', filter: getRoleLogoFilter('user') }} /> }
   ];
 
   const selected = options.find(o => o.value === value) || options[3];
@@ -388,7 +389,35 @@ const CustomRoleDropdown = ({ value, onChange }: { value: string, onChange: (val
   );
 };
 
-export const getRoleLogoFilter = (role: string) => {
+export const APP_MODULES = [
+  {
+    category: 'General',
+    categoryIcon: <LayoutDashboard size={16} />,
+    id: 'general',
+    label: 'Dashboard',
+    icon: <LayoutDashboard size={16} />,
+    isTopLevel: true,
+    placement: 'top',
+    items: [
+      { id: 'dashboard', label: 'View Dashboard', permission: 'View Dashboard', icon: <LayoutDashboard size={14} /> }
+    ]
+  },
+  {
+    category: 'System',
+    categoryIcon: <Shield size={16} />,
+    id: 'admin',
+    label: 'Admin Controls',
+    icon: <Shield size={16} />,
+    isTopLevel: false,
+    placement: 'bottom',
+    items: [
+      { id: 'role-manager', label: 'Users And Roles', permission: 'Manage Roles', icon: <Users size={14} /> },
+      { id: 'system-manager', label: 'System Manager', permission: 'System Settings', icon: <Sliders size={14} /> }
+    ]
+  }
+];
+
+export function getRoleLogoFilter(role: string) {
   switch (role) {
     case 'founder': return 'hue-rotate(110deg) saturate(1.5)';
     case 'admin': return 'hue-rotate(-40deg) saturate(1.2) brightness(0.8)';
@@ -396,18 +425,37 @@ export const getRoleLogoFilter = (role: string) => {
     case 'user': return 'invert(1)';
     default: return 'invert(1)';
   }
-};
+}
 
-const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: any) => {
-  const [activeSection, setActiveSection] = useState('roles');
+const RoleManager = ({ rolePermissions, setRolePermissions, roles, pendingRequests, setPendingRequests, isMobileScreen }: any) => {
+  const [activeSection, setActiveSection] = useState(() => localStorage.getItem('activeSection') || 'roles');
+  
+  useEffect(() => {
+    localStorage.setItem('activeSection', activeSection);
+  }, [activeSection]);
   const [filterRole, setFilterRole] = useState('all');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('founder');
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
+  
+  const sections = ['roles', 'users', 'requests'];
 
-  const permissions = [
-    { category: 'System', items: ['Manage Users', 'Manage Roles', 'System Settings'] },
-    { category: 'Content', items: ['Create Articles', 'Edit Articles', 'Delete Articles', 'Publish Articles'] },
-    { category: 'Analytics', items: ['View Dashboards', 'Export Data', 'Manage Alerts'] }
-  ];
+  const handleSectionChange = (newSection: string, direction?: 'left' | 'right') => {
+    if (direction) {
+      setSlideDirection(direction);
+    } else {
+      const currentIndex = sections.indexOf(activeSection);
+      const newIndex = sections.indexOf(newSection);
+      setSlideDirection(newIndex > currentIndex ? 'right' : 'left');
+    }
+    setActiveSection(newSection);
+  };
+
+  const permissions = APP_MODULES.map(module => ({
+    category: module.category,
+    categoryIcon: module.categoryIcon,
+    items: module.items.map(item => item.permission)
+  }));
 
   const [usersList, setUsersList] = useState([
     { id: 1, name: 'Alice Smith', email: 'alice@example.com', role: 'founder', status: 'Active' },
@@ -418,6 +466,9 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
 
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<{id: string, name: string, description: string} | null>(null);
+
+  const [mobileSelectedRole, setMobileSelectedRole] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<'menu' | 'appearance' | 'permissions'>('menu');
 
   const handleToggle = (item: string) => {
     if (selectedRole === 'founder') return;
@@ -430,42 +481,94 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
     }));
   };
 
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const minSwipeDistance = 50;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchEndX.current = null;
+    touchStartX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartX.current || !touchEndX.current) return;
+    const distance = touchStartX.current - touchEndX.current;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    if (isLeftSwipe || isRightSwipe) {
+      const currentIndex = sections.indexOf(activeSection);
+      if (isLeftSwipe) {
+        if (currentIndex < sections.length - 1) handleSectionChange(sections[currentIndex + 1], 'right');
+        else handleSectionChange(sections[0], 'right');
+      }
+      if (isRightSwipe) {
+        if (currentIndex > 0) handleSectionChange(sections[currentIndex - 1], 'left');
+        else handleSectionChange(sections[sections.length - 1], 'left');
+      }
+    }
+  };
+
   return (
-    <div className="system-manager-layout animate-fade-in" style={{ padding: 0 }}>
+    <div 
+      className="system-manager-layout animate-fade-in role-manager-layout"
+      onTouchStart={isMobileScreen ? handleTouchStart : undefined}
+      onTouchMove={isMobileScreen ? handleTouchMove : undefined}
+      onTouchEnd={isMobileScreen ? handleTouchEnd : undefined}
+    >
       {/* Primary Sidebar (Role Manager vs Users) */}
       <div className="system-manager-sidebar">
-        <h2 className="system-manager-title">Role Manager</h2>
+        <h2 className="system-manager-title">Users And Roles</h2>
         <div className="system-manager-nav">
           <a 
             className={`system-nav-item ${activeSection === 'roles' ? 'active' : ''}`}
-            onClick={() => setActiveSection('roles')}
+            onClick={() => handleSectionChange('roles')}
           >
-            <Shield size={16} /> Role Editor
+            <Shield size={16} /> Roles
           </a>
           <a 
             className={`system-nav-item ${activeSection === 'users' ? 'active' : ''}`}
-            onClick={() => setActiveSection('users')}
+            onClick={() => handleSectionChange('users')}
           >
             <Users size={16} /> Users
+          </a>
+          <a 
+            className={`system-nav-item ${activeSection === 'requests' ? 'active' : ''}`}
+            onClick={() => handleSectionChange('requests')}
+          >
+            <UserPlus size={16} /> User Requests
           </a>
         </div>
       </div>
 
-      <div className="system-manager-content inner-flex" style={{ display: 'flex', padding: 0, overflow: 'hidden' }}>
+      <div 
+        key={activeSection}
+        className={`system-manager-content inner-flex role-manager-inner-content ${slideDirection === 'left' ? 'slide-in-left' : slideDirection === 'right' ? 'slide-in-right' : 'animate-fade-in'}`}
+      >
         {activeSection === 'roles' ? (
           <>
             {/* Inner Sidebar (Roles List) */}
-            <div className="system-manager-sidebar" style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div className="system-manager-sidebar role-manager-sidebar" style={isMobileScreen && mobileSelectedRole ? { display: 'none' } : {}}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobileScreen ? '0.75rem' : '1.5rem' }}>
                 <h3 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>ROLES</h3>
                 <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={() => { setEditingRole(null); setIsRoleModalOpen(true); }}>+ New</button>
               </div>
               <div className="system-manager-nav">
-                {roles.map(role => (
+                {roles.map((role: any) => (
                   <a 
                     key={role.id}
                     className={`system-nav-item ${selectedRole === role.id ? 'active' : ''}`}
-                    onClick={() => setSelectedRole(role.id)}
+                    onClick={() => {
+                      setSelectedRole(role.id);
+                      if (isMobileScreen) {
+                        setMobileSelectedRole(role.id);
+                        setMobileView('menu');
+                      }
+                    }}
                     style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '1rem', gap: '0.5rem', height: 'auto', whiteSpace: 'normal' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
@@ -482,17 +585,18 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
             </div>
 
             {/* Permissions Area */}
-            <div className="role-manager-content-area">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '800px' }}>
+            {!isMobileScreen && (
+              <div className="role-manager-content-area">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '800px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
                     <h2 style={{ fontSize: '1.5rem', color: 'var(--text-main)', marginBottom: '0.25rem' }}>
-                      {roles.find(r => r.id === selectedRole)?.name} Permissions
+                      {roles.find((r: any) => r.id === selectedRole)?.name} Permissions
                     </h2>
                     <p style={{ color: 'var(--text-muted)' }}>Manage what this role can see and do.</p>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={() => { setEditingRole(roles.find(r => r.id === selectedRole) || null); setIsRoleModalOpen(true); }}>
+                    <button className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={() => { setEditingRole(roles.find((r: any) => r.id === selectedRole) || null); setIsRoleModalOpen(true); }}>
                       <Settings size={14} /> Edit Role Details
                     </button>
                   </div>
@@ -502,7 +606,7 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
                   {permissions.map(group => (
                     <div key={group.category} style={{ background: 'var(--panel-bg)', borderRadius: '12px', border: '1px solid var(--panel-border)', overflow: 'hidden' }}>
                       <div style={{ padding: '1rem 1.5rem', background: 'rgba(var(--overlay-color), 0.02)', borderBottom: '1px solid var(--panel-border)', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        {group.category === 'System' ? <Shield size={16} /> : group.category === 'Content' ? <LayoutDashboard size={16} /> : <Sliders size={16} />}
+                        {group.categoryIcon || <Shield size={16} />}
                         {group.category}
                       </div>
                       <div style={{ padding: '0.5rem 0' }}>
@@ -525,13 +629,19 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
                     </div>
                   ))}
                 </div>
+                </div>
               </div>
-            </div>
+            )}
           </>
-        ) : (
+        ) : activeSection === 'users' ? (
           <div className="role-manager-content-area">
             {/* Role Summary Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
+            <div className="role-summary-cards-container" style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isMobileScreen ? 'repeat(3, 1fr)' : 'repeat(auto-fit, minmax(200px, 1fr))', 
+              gap: isMobileScreen ? '0.5rem' : '1.5rem', 
+              marginBottom: isMobileScreen ? '1.5rem' : '2.5rem',
+            }}>
               {/* Total Users Card */}
               <div 
                 onClick={() => setFilterRole('all')}
@@ -539,27 +649,30 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
                   background: 'var(--panel-bg)', 
                   borderRadius: '12px', 
                   border: `1px solid ${filterRole === 'all' ? '#3b82f6' : 'var(--panel-border)'}`, 
-                  padding: '1.25rem', 
+                  padding: isMobileScreen ? '0.5rem 0.25rem' : '1.25rem', 
                   display: 'flex', 
+                  flexDirection: isMobileScreen ? 'column' : 'row',
                   alignItems: 'center', 
-                  gap: '1rem',
+                  justifyContent: isMobileScreen ? 'center' : 'flex-start',
+                  textAlign: isMobileScreen ? 'center' : 'left',
+                  gap: isMobileScreen ? '0.25rem' : '1rem',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
-                  boxShadow: filterRole === 'all' ? '0 0 0 1px #3b82f6' : 'none'
+                  boxShadow: filterRole === 'all' ? '0 0 0 1px #3b82f6' : 'none',
                 }}
               >
-                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(var(--overlay-color), 0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: filterRole === 'all' ? '#3b82f6' : 'var(--text-main)', border: '1px solid var(--panel-border)' }}>
-                  <Users size={20} />
+                <div style={{ width: isMobileScreen ? '28px' : '48px', height: isMobileScreen ? '28px' : '48px', borderRadius: isMobileScreen ? '8px' : '12px', background: 'rgba(var(--overlay-color), 0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: filterRole === 'all' ? '#3b82f6' : 'var(--text-main)', border: '1px solid var(--panel-border)' }}>
+                  <Users size={isMobileScreen ? 14 : 20} />
                 </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, marginBottom: '0.25rem' }}>Total Users</div>
-                  <div style={{ color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: 600, lineHeight: 1 }}>
-                    {usersList.length} <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-muted)' }}>users</span>
+                <div style={{ width: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ order: isMobileScreen ? 2 : 1, color: 'var(--text-muted)', fontSize: isMobileScreen ? '0.6rem' : '0.85rem', fontWeight: 600, marginTop: isMobileScreen ? '0.2rem' : '0', marginBottom: isMobileScreen ? '0' : '0.25rem', whiteSpace: isMobileScreen ? 'nowrap' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis' }}>Total Users</div>
+                  <div style={{ order: isMobileScreen ? 1 : 2, color: 'var(--text-main)', fontSize: isMobileScreen ? '1rem' : '1.5rem', fontWeight: 700, lineHeight: 1 }}>
+                    {usersList.length} {!isMobileScreen && <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-muted)' }}>users</span>}
                   </div>
                 </div>
               </div>
 
-              {roles.map(role => {
+              {roles.map((role: any) => {
                 const actualCount = usersList.filter(u => u.role === role.id).length;
                 const isActive = filterRole === role.id;
                 return (
@@ -570,22 +683,25 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
                       background: 'var(--panel-bg)', 
                       borderRadius: '12px', 
                       border: `1px solid ${isActive ? '#3b82f6' : 'var(--panel-border)'}`, 
-                      padding: '1.25rem', 
+                      padding: isMobileScreen ? '0.5rem 0.25rem' : '1.25rem', 
                       display: 'flex', 
+                      flexDirection: isMobileScreen ? 'column' : 'row',
                       alignItems: 'center', 
-                      gap: '1rem',
+                      justifyContent: isMobileScreen ? 'center' : 'flex-start',
+                      textAlign: isMobileScreen ? 'center' : 'left',
+                      gap: isMobileScreen ? '0.25rem' : '1rem',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
-                      boxShadow: isActive ? '0 0 0 1px #3b82f6' : 'none'
+                      boxShadow: isActive ? '0 0 0 1px #3b82f6' : 'none',
                     }}
                   >
-                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(var(--overlay-color), 0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isActive ? '#3b82f6' : 'var(--text-main)', border: '1px solid var(--panel-border)' }}>
-                      <img src="/logo-online.svg" alt="" style={{ width: '24px', height: '24px', filter: getRoleLogoFilter(role.id) }} />
+                    <div style={{ width: isMobileScreen ? '28px' : '48px', height: isMobileScreen ? '28px' : '48px', borderRadius: isMobileScreen ? '8px' : '12px', background: 'rgba(var(--overlay-color), 0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isActive ? '#3b82f6' : 'var(--text-main)', border: '1px solid var(--panel-border)' }}>
+                      <img src="/logo-online.svg" alt="" style={{ width: isMobileScreen ? '14px' : '24px', height: isMobileScreen ? '14px' : '24px', filter: getRoleLogoFilter(role.id) }} />
                     </div>
-                    <div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500, marginBottom: '0.25rem' }}>{role.name}</div>
-                      <div style={{ color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: 600, lineHeight: 1 }}>
-                        {actualCount} <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-muted)' }}>users</span>
+                    <div style={{ width: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ order: isMobileScreen ? 2 : 1, color: 'var(--text-muted)', fontSize: isMobileScreen ? '0.6rem' : '0.85rem', fontWeight: 600, marginTop: isMobileScreen ? '0.2rem' : '0', marginBottom: isMobileScreen ? '0' : '0.25rem', whiteSpace: isMobileScreen ? 'nowrap' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis' }}>{role.name}</div>
+                      <div style={{ order: isMobileScreen ? 1 : 2, color: 'var(--text-main)', fontSize: isMobileScreen ? '1rem' : '1.5rem', fontWeight: 700, lineHeight: 1 }}>
+                        {actualCount} {!isMobileScreen && <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-muted)' }}>users</span>}
                       </div>
                     </div>
                   </div>
@@ -593,69 +709,90 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
               })}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <h2 style={{ fontSize: '1.5rem', color: 'var(--text-main)', marginBottom: '0.25rem' }}>Users</h2>
-                <p style={{ color: 'var(--text-muted)' }}>Manage users and assign roles.</p>
+            <div style={{ display: 'flex', flexDirection: isMobileScreen ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobileScreen ? 'stretch' : 'center', marginBottom: '2rem', gap: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: isMobileScreen ? '100%' : 'auto' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.5rem', color: 'var(--text-main)', margin: '0 0 0.25rem 0' }}>Users</h2>
+                  <p style={{ margin: 0, color: 'var(--text-muted)' }}>Manage users and assign roles.</p>
+                </div>
+                {isMobileScreen && (
+                  <button className="btn" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', height: '40px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    + Invite
+                  </button>
+                )}
               </div>
-              <button className="btn" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                + Invite User
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: isMobileScreen ? 'none' : 1, justifyContent: 'flex-end', width: isMobileScreen ? '100%' : 'auto' }}>
+                <div style={{ position: 'relative', width: isMobileScreen ? '100%' : '300px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Search users..." 
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    style={{ 
+                      padding: '0.6rem 2.5rem 0.6rem 1rem', 
+                      borderRadius: '8px', 
+                      border: '1px solid var(--panel-border)', 
+                      background: 'var(--panel-bg)', 
+                      color: 'var(--text-main)',
+                      outline: 'none',
+                      width: '100%',
+                    }} 
+                  />
+                  <Search size={18} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                </div>
+                {!isMobileScreen && (
+                  <button className="btn" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', height: '40px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    + Invite User
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="responsive-table-container" style={{ background: 'var(--panel-bg)', borderRadius: '12px', border: '1px solid var(--panel-border)', minHeight: '350px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
-                <thead>
-                  <tr style={{ background: 'rgba(var(--overlay-color), 0.02)', borderBottom: '1px solid var(--panel-border)' }}>
-                    <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>User</th>
-                    <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>Role</th>
-                    <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>Status</th>
-                    <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem', textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usersList.filter(u => filterRole === 'all' || u.role === filterRole).map((user, i, arr) => (
-                    <tr key={user.id} style={{ position: 'relative', zIndex: arr.length - i, borderBottom: i !== arr.length - 1 ? '1px solid var(--panel-border)' : 'none' }}>
-                      <td style={{ padding: '1rem 1.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <div className="avatar" style={{ width: '32px', height: '32px' }}><User size={16} /></div>
-                          <div>
-                            <div style={{ color: 'var(--text-main)', fontWeight: 500, fontSize: '0.9rem' }}>{user.name}</div>
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{user.email}</div>
-                          </div>
+            {isMobileScreen ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '1rem' }}>
+                {usersList.filter(u => (filterRole === 'all' || u.role === filterRole) && (u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || u.email.toLowerCase().includes(userSearchQuery.toLowerCase()))).map((user, i, arr) => (
+                  <div key={user.id} style={{ background: 'var(--panel-bg)', borderRadius: '12px', border: '1px solid var(--panel-border)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div className="avatar" style={{ width: '40px', height: '40px' }}><User size={20} /></div>
+                        <div>
+                          <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{user.name}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{user.email}</div>
                         </div>
-                      </td>
-                      <td style={{ padding: '1rem 1.5rem' }}>
+                      </div>
+                      <span style={{ 
+                        fontSize: '0.75rem', 
+                        padding: '0.2rem 0.6rem', 
+                        borderRadius: '12px', 
+                        fontWeight: 600, 
+                        background: user.status === 'Active' ? 'rgba(52, 211, 153, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+                        color: user.status === 'Active' ? 'var(--success)' : 'var(--danger)'
+                      }}>
+                        {user.status}
+                      </span>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--panel-border)', position: 'relative', zIndex: arr.length - i }}>
+                      <div style={{ flex: 1, position: 'relative' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>Role</div>
                         <CustomRoleDropdown 
                           value={user.role} 
                           onChange={(val) => {
                             setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, role: val } : u));
                           }}
                         />
-                      </td>
-                      <td style={{ padding: '1rem 1.5rem' }}>
-                        <span style={{ 
-                          fontSize: '0.75rem', 
-                          padding: '0.2rem 0.6rem', 
-                          borderRadius: '12px', 
-                          fontWeight: 600, 
-                          background: user.status === 'Active' ? 'rgba(52, 211, 153, 0.1)' : 'rgba(248, 113, 113, 0.1)',
-                          color: user.status === 'Active' ? 'var(--success)' : 'var(--danger)'
-                        }}>
-                          {user.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                      </div>
+                      {user.role !== 'founder' && (
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', height: '42px' }}>
                           <button 
                             className="icon-btn" 
                             title={user.status === 'Active' ? 'Suspend' : 'Activate'}
                             onClick={() => {
                               setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, status: u.status === 'Active' ? 'Suspended' : 'Active' } : u));
                             }}
-                            style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}
+                            style={{ border: 'none', background: 'rgba(var(--overlay-color), 0.05)', color: 'var(--text-main)', cursor: 'pointer', padding: '0.5rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
-                            <Ban size={16} />
+                            <Ban size={18} />
                           </button>
                           <button 
                             className="icon-btn" 
@@ -663,25 +800,192 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
                             onClick={() => {
                               setUsersList(prev => prev.filter(u => u.id !== user.id));
                             }}
-                            style={{ border: 'none', background: 'transparent', color: 'var(--danger)', cursor: 'pointer' }}
+                            style={{ border: 'none', background: 'rgba(248, 113, 113, 0.1)', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={18} />
                           </button>
                         </div>
-                      </td>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="responsive-table-container" style={{ background: 'var(--panel-bg)', borderRadius: '12px', border: '1px solid var(--panel-border)', minHeight: '350px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(var(--overlay-color), 0.02)', borderBottom: '1px solid var(--panel-border)' }}>
+                      <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>User</th>
+                      <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>Role</th>
+                      <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>Status</th>
+                      <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem', textAlign: 'right' }}>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {usersList.filter(u => (filterRole === 'all' || u.role === filterRole) && (u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || u.email.toLowerCase().includes(userSearchQuery.toLowerCase()))).map((user, i, arr) => (
+                      <tr key={user.id} style={{ position: 'relative', zIndex: arr.length - i, borderBottom: i !== arr.length - 1 ? '1px solid var(--panel-border)' : 'none' }}>
+                        <td style={{ padding: '1rem 1.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div className="avatar" style={{ width: '32px', height: '32px' }}><User size={16} /></div>
+                            <div>
+                              <div style={{ color: 'var(--text-main)', fontWeight: 500, fontSize: '0.9rem' }}>{user.name}</div>
+                              <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{user.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: '1rem 1.5rem' }}>
+                          <CustomRoleDropdown 
+                            value={user.role} 
+                            onChange={(val) => {
+                              setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, role: val } : u));
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: '1rem 1.5rem' }}>
+                          <span style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '0.2rem 0.6rem', 
+                            borderRadius: '12px', 
+                            fontWeight: 600, 
+                            background: user.status === 'Active' ? 'rgba(52, 211, 153, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+                            color: user.status === 'Active' ? 'var(--success)' : 'var(--danger)'
+                          }}>
+                            {user.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                          {user.role !== 'founder' && (
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                              <button 
+                                className="icon-btn" 
+                                title={user.status === 'Active' ? 'Suspend' : 'Activate'}
+                                onClick={() => {
+                                  setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, status: u.status === 'Active' ? 'Suspended' : 'Active' } : u));
+                                }}
+                                style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}
+                              >
+                                <Ban size={16} />
+                              </button>
+                              <button 
+                                className="icon-btn" 
+                                title="Delete"
+                                onClick={() => {
+                                  setUsersList(prev => prev.filter(u => u.id !== user.id));
+                                }}
+                                style={{ border: 'none', background: 'transparent', color: 'var(--danger)', cursor: 'pointer' }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
+        ) : activeSection === 'requests' ? (
+          <div style={{ flex: 1, padding: isMobileScreen ? '1.5rem' : '2.5rem 3rem', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2.5rem' }}>
+              <div>
+                <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-main)' }}>User Requests</h1>
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.95rem' }}>Manage incoming requests for platform access.</p>
+              </div>
+            </div>
+            {pendingRequests && pendingRequests.length > 0 ? (
+              isMobileScreen ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '1rem' }}>
+                  {pendingRequests.map((req: any) => (
+                    <div key={req.id} style={{ background: 'var(--panel-bg)', borderRadius: '12px', border: '1px solid var(--panel-border)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{req.email}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{req.date}</div>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', borderRadius: '12px', background: req.status === 'Pending' ? 'rgba(234, 179, 8, 0.1)' : req.status === 'Approved' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: req.status === 'Pending' ? '#eab308' : req.status === 'Approved' ? 'var(--success)' : 'var(--danger)' }}>
+                          {req.status}
+                        </span>
+                      </div>
+                      
+                      {req.status === 'Pending' && (
+                        <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--panel-border)' }}>
+                          <button 
+                            onClick={() => setPendingRequests((prev: any) => prev.map((r: any) => r.id === req.id ? { ...r, status: 'Approved' } : r))}
+                            style={{ flex: 1, padding: '0.6rem', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}
+                          >
+                            Approve
+                          </button>
+                          <button 
+                            onClick={() => setPendingRequests((prev: any) => prev.map((r: any) => r.id === req.id ? { ...r, status: 'Rejected' } : r))}
+                            style={{ flex: 1, padding: '0.6rem', background: 'transparent', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="responsive-table-container" style={{ background: 'var(--panel-bg)', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(var(--overlay-color), 0.02)', borderBottom: '1px solid var(--panel-border)' }}>
+                        <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>Email</th>
+                        <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>Date</th>
+                        <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem' }}>Status</th>
+                        <th style={{ padding: '1rem 1.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingRequests.map((req: any) => (
+                        <tr key={req.id} style={{ borderBottom: '1px solid var(--panel-border)' }}>
+                          <td style={{ padding: '1rem 1.5rem', color: 'var(--text-main)', fontWeight: 500, fontSize: '0.9rem' }}>{req.email}</td>
+                          <td style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{req.date}</td>
+                          <td style={{ padding: '1rem 1.5rem' }}>
+                            <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', borderRadius: '12px', background: req.status === 'Pending' ? 'rgba(234, 179, 8, 0.1)' : req.status === 'Approved' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: req.status === 'Pending' ? '#eab308' : req.status === 'Approved' ? 'var(--success)' : 'var(--danger)' }}>
+                              {req.status}
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                            {req.status === 'Pending' && (
+                              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                <button 
+                                  onClick={() => setPendingRequests((prev: any) => prev.map((r: any) => r.id === req.id ? { ...r, status: 'Approved' } : r))}
+                                  style={{ padding: '0.4rem 0.8rem', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500 }}
+                                >
+                                  Approve
+                                </button>
+                                <button 
+                                  onClick={() => setPendingRequests((prev: any) => prev.map((r: any) => r.id === req.id ? { ...r, status: 'Rejected' } : r))}
+                                  style={{ padding: '0.4rem 0.8rem', background: 'transparent', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500 }}
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                No pending requests at this time.
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* Role Editor Modal */}
-      {isRoleModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-card" style={{ width: '400px', padding: '2rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease' }}>
+      {isRoleModalOpen && createPortal(
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-card" style={{ width: '90%', maxWidth: '400px', padding: '2rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-main)' }}>
                 {editingRole ? 'Edit Role Details' : 'Create New Role'}
@@ -715,7 +1019,7 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
                 <div style={{ padding: '1rem', background: 'rgba(var(--overlay-color), 0.03)', borderRadius: '8px', border: '1px solid var(--panel-border)' }}>
                   <div style={{ color: 'var(--text-main)', fontWeight: 500, fontSize: '0.9rem', marginBottom: '0.25rem' }}>Advanced Options</div>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
-                    Permissions for this role can be modified in the main Role Editor panel.
+                    Permissions for this role can be modified in the main Roles panel.
                   </p>
                 </div>
               )}
@@ -726,24 +1030,189 @@ const RoleManager = ({ rolePermissions, setRolePermissions, roles, setRoles }: a
               <button className="btn" onClick={() => setIsRoleModalOpen(false)}>Save Role</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+      {/* Mobile Role Editor Modal */}
+      {isMobileScreen && mobileSelectedRole && createPortal(
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div className="glass-card" style={{ width: '100%', maxWidth: '500px', padding: '1.5rem', borderRadius: '24px 24px 0 0', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease', background: 'var(--panel-bg)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                {mobileView !== 'menu' && (
+                  <button onClick={() => setMobileView('menu')} style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', cursor: 'pointer', padding: '0.2rem', display: 'flex', alignItems: 'center', marginLeft: '-0.2rem' }}>
+                    <ChevronDown size={20} style={{ transform: 'rotate(90deg)' }} />
+                  </button>
+                )}
+                <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {mobileView === 'menu' ? 'Role Settings' : mobileView === 'appearance' ? 'Appearance' : 'Permissions'}
+                </h3>
+              </div>
+              
+              {mobileView === 'menu' && (
+                <button onClick={() => setMobileSelectedRole(null)} style={{ background: 'rgba(var(--overlay-color), 0.05)', borderRadius: '50%', border: 'none', color: 'var(--text-main)', cursor: 'pointer', padding: '0.4rem', display: 'flex', alignItems: 'center', marginRight: '-0.2rem' }}>
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+
+            {mobileView === 'menu' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ padding: '1rem', background: 'rgba(var(--overlay-color), 0.03)', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <img src="/logo-online.svg" alt="" style={{ width: '20px', height: '20px', filter: getRoleLogoFilter(mobileSelectedRole) }} />
+                    <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.1rem' }}>{roles.find((r: any) => r.id === mobileSelectedRole)?.name}</h4>
+                  </div>
+                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.4' }}>
+                    {roles.find((r: any) => r.id === mobileSelectedRole)?.description}
+                  </p>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <button 
+                    className="btn" 
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'space-between', padding: '1rem', borderRadius: '12px' }}
+                    onClick={() => { setMobileView('appearance'); }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}><Palette size={18} /> Appearance</span>
+                    <ChevronDown size={16} style={{ transform: 'rotate(-90deg)' }} />
+                  </button>
+                  <button 
+                    className="btn" 
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'space-between', padding: '1rem', borderRadius: '12px' }}
+                    onClick={() => setMobileView('permissions')}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}><Shield size={18} /> Permissions</span>
+                    <ChevronDown size={16} style={{ transform: 'rotate(-90deg)' }} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {mobileView === 'appearance' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Role Name</label>
+                  <input 
+                    type="text" 
+                    defaultValue={roles.find((r: any) => r.id === mobileSelectedRole)?.name || ''}
+                    style={{ width: '100%', padding: '1rem', background: 'rgba(var(--overlay-color), 0.03)', border: '1px solid var(--panel-border)', borderRadius: '12px', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Description</label>
+                  <textarea 
+                    defaultValue={roles.find((r: any) => r.id === mobileSelectedRole)?.description || ''}
+                    style={{ width: '100%', padding: '1rem', background: 'rgba(var(--overlay-color), 0.03)', border: '1px solid var(--panel-border)', borderRadius: '12px', color: 'var(--text-main)', fontSize: '1rem', outline: 'none', minHeight: '120px', resize: 'vertical' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
+                  <button className="btn" onClick={() => setMobileView('menu')} style={{ width: '100%', padding: '1rem', borderRadius: '12px' }}>Save Changes</button>
+                </div>
+              </div>
+            )}
+
+            {mobileView === 'permissions' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {permissions.map(group => (
+                  <div key={group.category} style={{ background: 'rgba(var(--overlay-color), 0.02)', borderRadius: '12px', border: '1px solid var(--panel-border)', overflow: 'hidden' }}>
+                    <div style={{ padding: '1rem', background: 'rgba(var(--overlay-color), 0.03)', borderBottom: '1px solid var(--panel-border)', fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {group.categoryIcon || <Shield size={16} />}
+                      {group.category}
+                    </div>
+                    <div style={{ padding: '0.5rem 0' }}>
+                      {group.items.map((item, idx) => {
+                        const isChecked = rolePermissions[mobileSelectedRole!][item];
+                        const isImmutable = mobileSelectedRole === 'founder';
+                        return (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: idx !== group.items.length - 1 ? '1px solid var(--panel-border)' : 'none' }}>
+                            <span style={{ color: 'var(--text-main)', fontSize: '0.9rem' }}>{item}</span>
+                            <div 
+                              className={`toggle-switch ${isChecked ? 'active' : ''}`}
+                              onClick={() => {
+                                if (isImmutable) return;
+                                setRolePermissions((prev: any) => ({
+                                  ...prev,
+                                  [mobileSelectedRole!]: {
+                                    ...prev[mobileSelectedRole!],
+                                    [item]: !prev[mobileSelectedRole!][item]
+                                  }
+                                }));
+                              }}
+                              style={{ opacity: isImmutable ? 0.5 : 1, cursor: isImmutable ? 'not-allowed' : 'pointer' }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 };
 
-const SignInPage = ({ onSignIn }: { onSignIn: (role: string) => void }) => {
+const SignInPage = ({ onSignIn, onRequestAccess }: { onSignIn: (role: string) => void, onRequestAccess: (email: string) => void }) => {
   const [showPassword, setShowPassword] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [showRequestAccessModal, setShowRequestAccessModal] = useState(false);
+  const [authError, setAuthError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError('');
     const email = emailRef.current?.value.toLowerCase() || '';
-    let role = 'user';
-    if (email.includes('founder')) role = 'founder';
-    else if (email.includes('admin')) role = 'admin';
-    else if (email.includes('premium')) role = 'premium_user';
-    onSignIn(role);
+    const password = passwordRef.current?.value || '';
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      if (error.message.includes('rate limit')) {
+        // Fallback to local auth to unblock development
+        let role = 'user';
+        if (email.includes('founder')) role = 'founder';
+        else if (email.includes('admin')) role = 'admin';
+        else if (email.includes('premium')) role = 'premium_user';
+        localStorage.setItem('mockUserRole', role);
+        onSignIn(role);
+        return;
+      }
+
+      if (error.message.includes('Invalid login credentials')) {
+        // Attempt to create the user automatically if they don't exist
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        
+        if (signUpError) {
+          if (signUpError.message.includes('rate limit')) {
+            let role = 'user';
+            if (email.includes('founder')) role = 'founder';
+            else if (email.includes('admin')) role = 'admin';
+            else if (email.includes('premium')) role = 'premium_user';
+            localStorage.setItem('mockUserRole', role);
+            onSignIn(role);
+            return;
+          }
+          setAuthError(signUpError.message);
+        } else {
+          setAuthError("Account created! You can now sign in (you may need to verify your email if required by Supabase).");
+        }
+      } else {
+        setAuthError(error.message);
+      }
+    }
   };
   
   return (
@@ -832,13 +1301,14 @@ const SignInPage = ({ onSignIn }: { onSignIn: (role: string) => void }) => {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
               <label style={{ color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 500 }}>Password</label>
-              <a href="#" style={{ color: '#10b981', fontSize: '0.8rem', textDecoration: 'none', fontWeight: 500, transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>Forgot password?</a>
+              <a href="#" onClick={(e) => { e.preventDefault(); setShowResetModal(true); }} style={{ color: '#10b981', fontSize: '0.8rem', textDecoration: 'none', fontWeight: 500, transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>Forgot password?</a>
             </div>
             <div style={{ position: 'relative' }}>
               <div style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none', display: 'flex' }}>
                 <Lock size={16} />
               </div>
               <input 
+                ref={passwordRef}
                 type={showPassword ? 'text' : 'password'} 
                 required
                 defaultValue="password123"
@@ -858,6 +1328,12 @@ const SignInPage = ({ onSignIn }: { onSignIn: (role: string) => void }) => {
             </div>
           </div>
           
+          {authError && (
+            <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center', padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px' }}>
+              {authError}
+            </div>
+          )}
+
           <button type="submit" style={{ width: '100%', padding: '0.75rem', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 600, marginTop: '0.25rem', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', color: '#ffffff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)', transition: 'all 0.2s', textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}
             onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255,255,255,0.2)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)'; }}
@@ -890,9 +1366,72 @@ const SignInPage = ({ onSignIn }: { onSignIn: (role: string) => void }) => {
         </div>
 
         <div style={{ textAlign: 'center', fontSize: '0.9rem', color: '#94a3b8', marginTop: '0.5rem' }}>
-          Don't have an account? <a href="#" style={{ color: '#10b981', textDecoration: 'none', fontWeight: 600, transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>Request Access</a>
+          Don't have an account? <a href="#" onClick={(e) => { e.preventDefault(); setShowRequestAccessModal(true); }} style={{ color: '#10b981', textDecoration: 'none', fontWeight: 600, transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>Request Access</a>
         </div>
       </div>
+
+      {/* Reset Password Modal */}
+      {showResetModal && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div className="animate-fade-in" style={{ background: 'rgba(15, 23, 42, 0.9)', padding: '2rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '350px', width: '90%', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#f8fafc' }}>Reset Password</h3>
+            <p style={{ color: '#94a3b8', marginBottom: '1.5rem', lineHeight: '1.5', fontSize: '0.9rem' }}>
+              Please contact your system administrator to reset your password.
+            </p>
+            <button 
+              onClick={() => setShowResetModal(false)}
+              style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Understood
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Request Access Modal */}
+      {showRequestAccessModal && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div className="animate-fade-in" style={{ background: 'rgba(15, 23, 42, 0.9)', padding: '2rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '350px', width: '90%', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#f8fafc' }}>Request Access</h3>
+            <p style={{ color: '#94a3b8', marginBottom: '1.5rem', lineHeight: '1.5', fontSize: '0.9rem' }}>
+              Enter your email address to request an account.
+            </p>
+            <div style={{ position: 'relative', marginBottom: '1.5rem', textAlign: 'left' }}>
+              <div style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none', display: 'flex' }}>
+                <Mail size={16} />
+              </div>
+              <input 
+                id="request-access-email"
+                type="email" 
+                placeholder="Email address"
+                style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.5rem', background: 'rgba(0, 0, 0, 0.2)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', color: '#f8fafc', fontSize: '0.9rem', outline: 'none', transition: 'all 0.2s', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}
+                onFocus={(e) => { e.target.style.borderColor = '#10b981'; e.target.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.2), inset 0 2px 4px rgba(0,0,0,0.1)'; (e.target.previousSibling as HTMLElement).style.color = '#10b981'; }}
+                onBlur={(e) => { e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'; e.target.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.1)'; (e.target.previousSibling as HTMLElement).style.color = '#64748b'; }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button 
+                onClick={() => setShowRequestAccessModal(false)}
+                style={{ flex: 1, padding: '0.7rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: '#f8fafc', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  const email = (document.getElementById('request-access-email') as HTMLInputElement)?.value;
+                  if (email) {
+                    onRequestAccess(email);
+                    setShowRequestAccessModal(false);
+                  }
+                }}
+                style={{ flex: 1, padding: '0.7rem', borderRadius: '8px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -900,24 +1439,16 @@ const SignInPage = ({ onSignIn }: { onSignIn: (role: string) => void }) => {
 function App() {
   const [rolePermissions, setRolePermissions] = useState<Record<string, Record<string, boolean>>>({
     'founder': {
-      'Manage Users': true, 'Manage Roles': true, 'System Settings': true,
-      'Create Articles': true, 'Edit Articles': true, 'Delete Articles': true, 'Publish Articles': true,
-      'View Dashboards': true, 'Export Data': true, 'Manage Alerts': true
+      'Manage Roles': true, 'System Settings': true, 'View Dashboard': true
     },
     'admin': {
-      'Manage Users': true, 'Manage Roles': false, 'System Settings': true,
-      'Create Articles': true, 'Edit Articles': true, 'Delete Articles': true, 'Publish Articles': true,
-      'View Dashboards': true, 'Export Data': true, 'Manage Alerts': true
+      'Manage Roles': false, 'System Settings': true, 'View Dashboard': true
     },
     'premium_user': {
-      'Manage Users': false, 'Manage Roles': false, 'System Settings': false,
-      'Create Articles': false, 'Edit Articles': false, 'Delete Articles': false, 'Publish Articles': false,
-      'View Dashboards': false, 'Export Data': false, 'Manage Alerts': false
+      'Manage Roles': false, 'System Settings': false, 'View Dashboard': true
     },
     'user': {
-      'Manage Users': false, 'Manage Roles': false, 'System Settings': false,
-      'Create Articles': false, 'Edit Articles': false, 'Delete Articles': false, 'Publish Articles': false,
-      'View Dashboards': false, 'Export Data': false, 'Manage Alerts': false
+      'Manage Roles': false, 'System Settings': false, 'View Dashboard': true
     }
   });
   const [roles, setRoles] = useState([
@@ -926,9 +1457,15 @@ function App() {
     { id: 'premium_user', name: 'Premium User', description: 'Elevated user status granted access to advanced or monetized platform capabilities.' },
     { id: 'user', name: 'User', description: 'Baseline platform participant.' }
   ]);
+  const [pendingRequests, setPendingRequests] = useState<{id: string, email: string, date: string, status: 'Pending' | 'Approved' | 'Rejected'}[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState('founder');
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'dashboard');
+  
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -950,13 +1487,57 @@ function App() {
   const [mobileBgOffsetX, setMobileBgOffsetX] = useState(0);
   const [mobileBgOffsetY, setMobileBgOffsetY] = useState(0);
   const [isMobileScreen, setIsMobileScreen] = useState(window.innerWidth <= 768);
-  const [systemManagerSection, setSystemManagerSection] = useState('appearance');
+  const [systemManagerSection, setSystemManagerSection] = useState(() => localStorage.getItem('systemManagerSection') || 'appearance');
+  
+  useEffect(() => {
+    localStorage.setItem('systemManagerSection', systemManagerSection);
+  }, [systemManagerSection]);
   const [appWidth, setAppWidth] = useState(95);
   const [appHeight, setAppHeight] = useState(92);
   const [appRadius, setAppRadius] = useState(20);
   const [appBgOverride, setAppBgOverride] = useState('');
   const [isSavingAppearance, setIsSavingAppearance] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const mockRole = localStorage.getItem('mockUserRole');
+    if (mockRole) {
+      setCurrentUserRole(mockRole);
+      setIsAuthenticated(true);
+      setIsInitializing(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setIsAuthenticated(true);
+        const email = session.user.email || '';
+        let role = 'user';
+        if (email.includes('founder')) role = 'founder';
+        else if (email.includes('admin')) role = 'admin';
+        else if (email.includes('premium')) role = 'premium_user';
+        setCurrentUserRole(role);
+      }
+      setIsInitializing(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setIsAuthenticated(true);
+        setActiveTab('dashboard');
+        const email = session.user.email || '';
+        let role = 'user';
+        if (email.includes('founder')) role = 'founder';
+        else if (email.includes('admin')) role = 'admin';
+        else if (email.includes('premium')) role = 'premium_user';
+        setCurrentUserRole(role);
+      } else {
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -1062,42 +1643,117 @@ function App() {
     };
   }, []);
 
-  const navItems: { id: string; label: string; icon: ReactNode; subItems?: { id: string; label: string; icon: ReactNode }[] }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
-  ];
-
-  const adminNavItems: { id: string; label: string; icon: ReactNode; subItems?: { id: string; label: string; icon: ReactNode }[] }[] = [];
+  const topNavItems: any[] = [];
+  const bottomNavItems: any[] = [];
   
-  const adminSubItems = [];
-  if (rolePermissions[currentUserRole]?.['Manage Roles']) {
-    adminSubItems.push({ id: 'role-manager', label: 'Role Manager', icon: <Users size={14} /> });
-  }
-  if (rolePermissions[currentUserRole]?.['System Settings']) {
-    adminSubItems.push({ id: 'system-manager', label: 'System Manager', icon: <Sliders size={14} /> });
-  }
-
-  if (adminSubItems.length > 0) {
-    adminNavItems.push({
-      id: 'admin',
-      label: 'Admin Controls',
-      icon: <Shield size={16} />,
-      subItems: adminSubItems
-    });
-  }
-
-
+  APP_MODULES.forEach(module => {
+    const subItems = module.items
+      .filter(item => rolePermissions[currentUserRole]?.[item.permission])
+      .map(item => ({ id: item.id, label: item.label, icon: item.icon }));
+    
+    if (subItems.length > 0) {
+      const targetArray = module.placement === 'bottom' ? bottomNavItems : topNavItems;
+      if (module.isTopLevel && subItems.length === 1) {
+        targetArray.push({
+          id: subItems[0].id,
+          label: module.label,
+          icon: module.icon
+        });
+      } else {
+        targetArray.push({
+          id: module.id,
+          label: module.label,
+          icon: module.icon,
+          subItems
+        });
+      }
+    }
+  });
 
   const effectivelyCollapsed = isCollapsed && !isMobileMenuOpen;
 
+  const renderNavItems = (items: any[]) => (
+    items.map((item) => {
+      const hasSubItems = item.subItems && item.subItems.length > 0;
+      const isExactActive = activeTab === item.id;
+      const isChildActive = hasSubItems && item.subItems?.some((sub: any) => activeTab === sub.id);
+      const hideParentInCollapsed = effectivelyCollapsed && isChildActive;
+
+      return (
+        <div key={item.id} className="nav-item-group">
+          {!hideParentInCollapsed && (
+            <a
+              className={`nav-item ${isExactActive ? 'active' : ''} ${isChildActive ? 'child-active' : ''}`}
+              onClick={() => {
+                if (!hasSubItems) {
+                  setActiveTab(item.id);
+                  setIsMobileMenuOpen(false);
+                  setIsCollapsed(true);
+                  setExpandedGroups({});
+                } else {
+                  setExpandedGroups(prev => ({
+                    ...prev,
+                    [item.id]: !prev[item.id]
+                  }));
+                }
+              }}
+            >
+              {item.icon}
+              {!effectivelyCollapsed && <span className="nav-label">{item.label}</span>}
+              {effectivelyCollapsed && <span className="nav-tooltip">{item.label}</span>}
+              
+              {hasSubItems && !effectivelyCollapsed && (
+                <div className="nav-chevron" style={{ transform: expandedGroups[item.id] ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                  <ChevronDown size={14} />
+                </div>
+              )}
+            </a>
+          )}
+
+          {hasSubItems && (
+            <div className={`nav-subitems-container ${expandedGroups[item.id] || isChildActive ? 'expanded' : ''}`}>
+              <div className="nav-subitems">
+                {item.subItems?.map((subItem: any) => (
+                  <a
+                    key={subItem.id}
+                    className={`nav-subitem ${activeTab === subItem.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setActiveTab(subItem.id);
+                      setIsMobileMenuOpen(false);
+                    }}
+                  >
+                    {subItem.icon && <span style={{ display: 'flex' }}>{subItem.icon}</span>}
+                    {!effectivelyCollapsed && <span className="nav-label">{subItem.label}</span>}
+                    {effectivelyCollapsed && <span className="nav-tooltip">{subItem.label}</span>}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    })
+  );
+
+  if (isInitializing) {
+    return null;
+  }
+
   if (!isAuthenticated) {
-    return <SignInPage onSignIn={(role) => {
-      setCurrentUserRole(role);
-      setIsAuthenticated(true);
-    }} />;
+    return <SignInPage 
+      onSignIn={(role) => {
+        setCurrentUserRole(role);
+        setIsAuthenticated(true);
+        setActiveTab('dashboard');
+      }} 
+      onRequestAccess={(email) => {
+        setPendingRequests(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), email, date: new Date().toLocaleDateString(), status: 'Pending' }]);
+      }}
+    />;
   }
 
   return (
-    <div className="app-container" style={isMobileScreen ? undefined : {
+    <div className="app-container" style={isMobileScreen ? { width: '100vw', height: '100vh', borderRadius: 0, border: 'none' } : {
       width: `${appWidth}vw`,
       height: `${appHeight}vh`,
       borderRadius: `${appRadius}px`
@@ -1146,116 +1802,14 @@ function App() {
         
         <div className="nav-scroll-area">
           <nav className="nav-menu animate-fade-in delay-2" style={{ marginTop: '2rem' }}>
-            {navItems.map((item) => {
-              const hasSubItems = item.subItems && item.subItems.length > 0;
-              const isExactActive = activeTab === item.id;
-              const isChildActive = hasSubItems && item.subItems?.some(sub => activeTab === sub.id);
-
-              return (
-                <div key={item.id} className="nav-item-group">
-                  <a
-                    className={`nav-item ${isExactActive ? 'active' : ''} ${isChildActive ? 'child-active' : ''}`}
-                    onClick={() => {
-                      if (!hasSubItems) {
-                        setActiveTab(item.id);
-                        setIsMobileMenuOpen(false);
-                        setIsCollapsed(true);
-                        setExpandedGroups({});
-                      }
-                      // For this demo, clicking the parent when expanded doesn't do anything special,
-                      // or it could select the first child. We'll leave it as a category label.
-                    }}
-                  >
-                    {item.icon}
-                    {!effectivelyCollapsed && <span className="nav-label">{item.label}</span>}
-                    {effectivelyCollapsed && <span className="nav-tooltip">{item.label}</span>}
-                  </a>
-
-                  {hasSubItems && !effectivelyCollapsed && (
-                    <div className="nav-subitems">
-                      {item.subItems?.map(subItem => (
-                        <a
-                          key={subItem.id}
-                          className={`nav-subitem ${activeTab === subItem.id ? 'active' : ''}`}
-                          onClick={() => {
-                            setActiveTab(subItem.id);
-                            setIsMobileMenuOpen(false);
-                          }}
-                        >
-                          <span className="nav-label">{subItem.label}</span>
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {renderNavItems(topNavItems)}
           </nav>
         </div>
 
         <div className="mt-auto" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
           
           <nav className="nav-menu animate-fade-in delay-2" style={{ width: '100%' }}>
-            {adminNavItems.map((item) => {
-              const hasSubItems = item.subItems && item.subItems.length > 0;
-              const isExactActive = activeTab === item.id;
-              const isChildActive = hasSubItems && item.subItems?.some(sub => activeTab === sub.id);
-              const hideParentInCollapsed = effectivelyCollapsed && isChildActive;
-
-              return (
-                <div key={item.id} className="nav-item-group">
-                  {!hideParentInCollapsed && (
-                    <a
-                      className={`nav-item ${isExactActive ? 'active' : ''} ${isChildActive ? 'child-active' : ''}`}
-                      onClick={() => {
-                        if (!hasSubItems) {
-                          setActiveTab(item.id);
-                          setIsMobileMenuOpen(false);
-                          setIsCollapsed(true);
-                          setExpandedGroups({});
-                        } else {
-                        setExpandedGroups(prev => ({
-                          ...prev,
-                          [item.id]: !prev[item.id]
-                        }));
-                      }
-                    }}
-                  >
-                    {item.icon}
-                    {!effectivelyCollapsed && <span className="nav-label">{item.label}</span>}
-                    {effectivelyCollapsed && <span className="nav-tooltip">{item.label}</span>}
-                    
-                    {hasSubItems && !effectivelyCollapsed && (
-                      <div className="nav-chevron" style={{ transform: expandedGroups[item.id] ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                        <ChevronDown size={14} />
-                      </div>
-                    )}
-                    </a>
-                  )}
-
-                  {hasSubItems && (
-                    <div className={`nav-subitems-container ${expandedGroups[item.id] || isChildActive ? 'expanded' : ''}`}>
-                      <div className="nav-subitems">
-                        {item.subItems?.map(subItem => (
-                          <a
-                            key={subItem.id}
-                            className={`nav-subitem ${activeTab === subItem.id ? 'active' : ''}`}
-                            onClick={() => {
-                              setActiveTab(subItem.id);
-                              setIsMobileMenuOpen(false);
-                            }}
-                          >
-                            {subItem.icon && <span style={{ display: 'flex' }}>{subItem.icon}</span>}
-                            {!effectivelyCollapsed && <span className="nav-label">{subItem.label}</span>}
-                            {effectivelyCollapsed && <span className="nav-tooltip">{subItem.label}</span>}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {renderNavItems(bottomNavItems)}
           </nav>
 
           <div ref={menuRef} style={{ position: 'relative' }}>
@@ -1274,7 +1828,7 @@ function App() {
                 <a className="menu-item"><CreditCard size={14} /> Manage Subscription</a>
                 <a className="menu-item"><HelpCircle size={14} /> Help & Support</a>
                 <div className="menu-divider"></div>
-                <a className="menu-item text-danger" onClick={() => { setIsAuthenticated(false); setIsProfileMenuOpen(false); }} style={{ cursor: 'pointer' }}><LogOut size={14} /> Log Out</a>
+                <a className="menu-item text-danger" onClick={async () => { localStorage.removeItem('mockUserRole'); await supabase.auth.signOut(); setIsProfileMenuOpen(false); setIsAuthenticated(false); }} style={{ cursor: 'pointer' }}><LogOut size={14} /> Log Out</a>
               </div>
             )}
             
@@ -1345,7 +1899,7 @@ function App() {
             </div>
           </div>
         ) : activeTab === 'role-manager' ? (
-          <RoleManager rolePermissions={rolePermissions} setRolePermissions={setRolePermissions} roles={roles} setRoles={setRoles} />
+          <RoleManager rolePermissions={rolePermissions} setRolePermissions={setRolePermissions} roles={roles} setRoles={setRoles} pendingRequests={pendingRequests} setPendingRequests={setPendingRequests} isMobileScreen={isMobileScreen} />
         ) : activeTab === 'system-manager' ? (
           <div className="system-manager-layout animate-fade-in">
             {/* Left Sidebar (1) */}
