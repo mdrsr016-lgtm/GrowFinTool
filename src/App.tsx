@@ -1188,7 +1188,9 @@ const SignInPage = ({ onSignIn, onRequestAccess }: { onSignIn: (role: string) =>
         return;
       }
 
-      if (error.message.includes('Invalid login credentials')) {
+      if (error.message === 'Failed to fetch') {
+        setAuthError('Network error: Failed to fetch. Please disable any ad-blockers (like Brave Shields) which often block Supabase, or verify your Vercel Environment Variables are correctly configured.');
+      } else if (error.message.includes('Invalid login credentials')) {
         // Attempt to create the user automatically if they don't exist
         const { error: signUpError } = await supabase.auth.signUp({
           email,
