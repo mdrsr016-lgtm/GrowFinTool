@@ -35,6 +35,7 @@ import {
   Info
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
+import { loadGlobalSettings, saveGlobalSettings } from './lib/settings';
 import './index.css';
 
 interface BgConfigCardProps {
@@ -1487,15 +1488,29 @@ function App() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [backgroundType, setBackgroundType] = useState('dark-black');
-  const [customBgUrl, setCustomBgUrl] = useState('');
+  const [backgroundType, setBackgroundType] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').backgroundType || 'dark-black'; } catch { return 'dark-black'; }
+  });
+  const [customBgUrl, setCustomBgUrl] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').customBgUrl || ''; } catch { return ''; }
+  });
   const customBgColor = '#3b82f6';
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ 'admin': true });
-  const [customBgRotate, setCustomBgRotate] = useState(0);
-  const [customBgScale, setCustomBgScale] = useState(1);
-  const [customBgBlur, setCustomBgBlur] = useState(0);
-  const [customBgOffsetX, setCustomBgOffsetX] = useState(0);
-  const [customBgOffsetY, setCustomBgOffsetY] = useState(0);
+  const [customBgRotate, setCustomBgRotate] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').customBgRotate ?? 0; } catch { return 0; }
+  });
+  const [customBgScale, setCustomBgScale] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').customBgScale ?? 1; } catch { return 1; }
+  });
+  const [customBgBlur, setCustomBgBlur] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').customBgBlur ?? 0; } catch { return 0; }
+  });
+  const [customBgOffsetX, setCustomBgOffsetX] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').customBgOffsetX ?? 0; } catch { return 0; }
+  });
+  const [customBgOffsetY, setCustomBgOffsetY] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').customBgOffsetY ?? 0; } catch { return 0; }
+  });
   const [isBgModalOpen, setIsBgModalOpen] = useState(false);
   const [mobileBgUrl, setMobileBgUrl] = useState('');
   const [mobileBgRotate, setMobileBgRotate] = useState(0);
@@ -1570,15 +1585,74 @@ function App() {
   useEffect(() => {
     localStorage.setItem('systemManagerSection', systemManagerSection);
   }, [systemManagerSection]);
-  const [appWidth, setAppWidth] = useState(95);
-  const [appHeight, setAppHeight] = useState(92);
-  const [appRadius, setAppRadius] = useState(20);
-  const [appBgOverride, setAppBgOverride] = useState('');
+  const [appWidth, setAppWidth] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').appWidth ?? 95; } catch { return 95; }
+  });
+  const [appHeight, setAppHeight] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').appHeight ?? 92; } catch { return 92; }
+  });
+  const [appRadius, setAppRadius] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').appRadius ?? 20; } catch { return 20; }
+  });
+  const [appBgOverride, setAppBgOverride] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').appBgOverride || ''; } catch { return ''; }
+  });
+  const [panelOpacity, setPanelOpacity] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').panelOpacity ?? 18; } catch { return 18; }
+  });
+  const [bgOpacity, setBgOpacity] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').bgOpacity ?? 20; } catch { return 20; }
+  });
+  const [panelBlur, setPanelBlur] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('global_appearance') || '{}').panelBlur ?? 18; } catch { return 18; }
+  });
   const [isSavingAppearance, setIsSavingAppearance] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // ── Auto-save all appearance settings to localStorage in real-time ──
   useEffect(() => {
+    const snapshot = {
+      appWidth, appHeight, appRadius, appBgOverride,
+      panelOpacity, bgOpacity, panelBlur,
+      backgroundType, customBgUrl,
+      customBgRotate, customBgScale, customBgBlur, customBgOffsetX, customBgOffsetY,
+    };
+    localStorage.setItem('global_appearance', JSON.stringify(snapshot));
+  }, [
+    appWidth, appHeight, appRadius, appBgOverride,
+    panelOpacity, bgOpacity, panelBlur,
+    backgroundType, customBgUrl,
+    customBgRotate, customBgScale, customBgBlur, customBgOffsetX, customBgOffsetY,
+  ]);
+
+  // Sync all transparency sliders → CSS custom properties (runs on mount + every change)
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--panel-bg', `rgba(20, 21, 23, ${panelOpacity / 100})`);
+    root.style.setProperty('--panel-blur', `blur(${panelBlur}px)`);
+    root.style.setProperty('--app-bg-alpha', `${bgOpacity / 100}`);
+  }, [panelOpacity, panelBlur, bgOpacity]);
+
+  useEffect(() => {
+    loadGlobalSettings().then(settings => {
+      if (settings.appWidth != null) setAppWidth(settings.appWidth);
+      if (settings.appHeight != null) setAppHeight(settings.appHeight);
+      if (settings.appRadius != null) setAppRadius(settings.appRadius);
+      if (settings.appBgOverride != null) setAppBgOverride(settings.appBgOverride);
+      if (settings.panelOpacity != null) setPanelOpacity(settings.panelOpacity);
+      if (settings.bgOpacity != null) setBgOpacity(settings.bgOpacity);
+      if (settings.panelBlur != null) setPanelBlur(settings.panelBlur);
+      if (settings.backgroundType != null) setBackgroundType(settings.backgroundType);
+      if (settings.customBgUrl != null) setCustomBgUrl(settings.customBgUrl);
+      if (settings.customBgRotate != null) setCustomBgRotate(settings.customBgRotate);
+      if (settings.customBgScale != null) setCustomBgScale(settings.customBgScale);
+      if (settings.customBgBlur != null) setCustomBgBlur(settings.customBgBlur);
+      if (settings.customBgOffsetX != null) setCustomBgOffsetX(settings.customBgOffsetX);
+      if (settings.customBgOffsetY != null) setCustomBgOffsetY(settings.customBgOffsetY);
+    });
+
     const mockRole = localStorage.getItem('mockUserRole');
+
     if (mockRole) {
       setCurrentUserRole(mockRole);
       setIsAuthenticated(true);
@@ -2016,8 +2090,11 @@ function App() {
                     <Palette size={24} style={{ color: 'var(--text-main)' }} />
                     <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.25rem' }}>Appearance Options</h2>
                   </div>
-                  
-                  <div className="settings-grid" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '600px' }}>
+
+                  {/* 2-column layout */}
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobileScreen ? '1fr' : '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
+
+                  <div className="settings-grid" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     
                     {!isMobileScreen && (
                       <div className="setting-card" style={{ background: 'var(--panel-bg)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
@@ -2109,13 +2186,73 @@ function App() {
                         </p>
                       </div>
                     </div>
+                    {/* Advanced Transparency */}
+                    <div className="setting-card" style={{ background: 'var(--panel-bg)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
+                      <h3 style={{ color: 'var(--text-main)', marginBottom: '0.35rem', fontSize: '1rem' }}>Advanced Transparency</h3>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Control how transparent the cards, sidebar, and background appear over your wallpaper.</p>
+
+                      {/* Card Opacity */}
+                      <div className="slider-group" style={{ marginBottom: '1.5rem' }}>
+                        <label>
+                          <span>Card &amp; Sidebar Opacity</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setPanelOpacity(18)}>Reset</span>
+                            <span>{panelOpacity}%</span>
+                          </div>
+                        </label>
+                        <input type="range" min="0" max="95" value={panelOpacity} onChange={e => setPanelOpacity(parseInt(e.target.value))} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                          <span>Fully transparent</span>
+                          <span>Almost solid</span>
+                        </div>
+                      </div>
+
+                      {/* Background Opacity */}
+                      <div className="slider-group" style={{ marginBottom: '1.5rem' }}>
+                        <label>
+                          <span>App Background Opacity</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setBgOpacity(20)}>Reset</span>
+                            <span>{bgOpacity}%</span>
+                          </div>
+                        </label>
+                        <input type="range" min="0" max="95" value={bgOpacity} onChange={e => setBgOpacity(parseInt(e.target.value))} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                          <span>Show wallpaper fully</span>
+                          <span>Dark overlay</span>
+                        </div>
+                      </div>
+
+                      {/* Blur Intensity */}
+                      <div className="slider-group">
+                        <label>
+                          <span>Blur Intensity</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setPanelBlur(18)}>Reset</span>
+                            <span>{panelBlur}px</span>
+                          </div>
+                        </label>
+                        <input type="range" min="0" max="40" value={panelBlur} onChange={e => setPanelBlur(parseInt(e.target.value))} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                          <span>No blur (sharp)</span>
+                          <span>Heavy frosted glass</span>
+                        </div>
+                      </div>
+                    </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
                       <button 
                         className="btn" 
                         style={{ minWidth: '140px', display: 'flex', justifyContent: 'center' }}
-                        onClick={() => {
+                        onClick={async () => {
                           setIsSavingAppearance(true);
+                          const globalSettings = {
+                            appWidth, appHeight, appRadius, appBgOverride,
+                            panelOpacity, bgOpacity, panelBlur,
+                            backgroundType, customBgUrl,
+                            customBgRotate, customBgScale, customBgBlur, customBgOffsetX, customBgOffsetY,
+                          };
+                          await saveGlobalSettings(globalSettings);
                           setTimeout(() => setIsSavingAppearance(false), 2000);
                         }}
                       >
@@ -2123,7 +2260,85 @@ function App() {
                       </button>
                     </div>
 
-                  </div>
+
+                  </div>{/* end settings column */}
+
+                  {/* ── RIGHT: Live Preview column ── */}
+                  {!isMobileScreen && (
+                    <div style={{ position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <h3 style={{ color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Live Preview</h3>
+
+                      {/* Mini app window preview */}
+                      <div style={{
+                        borderRadius: '14px',
+                        overflow: 'hidden',
+                        border: '1px solid var(--panel-border)',
+                        background: 'linear-gradient(135deg, #1a6b3a 0%, #2d8a52 40%, #1e5c34 70%, #162e1c 100%)',
+                        height: '220px',
+                        position: 'relative',
+                      }}>
+                        {/* Simulated sidebar */}
+                        <div style={{
+                          position: 'absolute', left: 0, top: 0, bottom: 0, width: '28%',
+                          background: `rgba(20, 21, 23, ${panelOpacity / 100})`,
+                          backdropFilter: `blur(${panelBlur}px)`,
+                          WebkitBackdropFilter: `blur(${panelBlur}px)`,
+                          borderRight: '1px solid rgba(255,255,255,0.1)',
+                          display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px 8px',
+                        }}>
+                          {[40, 65, 55, 70].map((w, i) => (
+                            <div key={i} style={{ height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.2)', width: `${w}%` }} />
+                          ))}
+                        </div>
+                        {/* Simulated content overlay */}
+                        <div style={{
+                          position: 'absolute', left: '30%', top: 0, right: 0, bottom: 0,
+                          background: `rgba(20, 21, 23, ${bgOpacity / 100})`,
+                          backdropFilter: `blur(0px)`,
+                          display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px',
+                        }}>
+                          {/* Simulated cards */}
+                          {[1, 2].map(i => (
+                            <div key={i} style={{
+                              borderRadius: '8px',
+                              background: `rgba(20, 21, 23, ${panelOpacity / 100})`,
+                              backdropFilter: `blur(${panelBlur}px)`,
+                              WebkitBackdropFilter: `blur(${panelBlur}px)`,
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              padding: '10px',
+                              flex: 1,
+                              display: 'flex', flexDirection: 'column', gap: '5px',
+                            }}>
+                              <div style={{ height: '7px', borderRadius: '3px', background: 'rgba(255,255,255,0.3)', width: '50%' }} />
+                              <div style={{ height: '5px', borderRadius: '3px', background: 'rgba(255,255,255,0.15)', width: '80%' }} />
+                              <div style={{ height: '5px', borderRadius: '3px', background: 'rgba(255,255,255,0.1)', width: '60%' }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Current values summary */}
+                      <div style={{ background: 'var(--panel-bg)', backdropFilter: `blur(${panelBlur}px)`, WebkitBackdropFilter: `blur(${panelBlur}px)`, border: '1px solid var(--panel-border)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>Current Values</div>
+                        {[
+                          { label: 'Card Opacity', value: `${panelOpacity}%`, bar: panelOpacity / 95 },
+                          { label: 'Background', value: `${bgOpacity}%`, bar: bgOpacity / 95 },
+                          { label: 'Blur', value: `${panelBlur}px`, bar: panelBlur / 40 },
+                        ].map(({ label, value, bar }) => (
+                          <div key={label}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                              <span>{label}</span><span style={{ color: 'var(--accent)' }}>{value}</span>
+                            </div>
+                            <div style={{ height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.08)' }}>
+                              <div style={{ height: '100%', width: `${bar * 100}%`, background: 'var(--accent)', borderRadius: '2px', transition: 'width 0.2s' }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  </div>{/* end 2-col grid */}
                 </div>
               ) : systemManagerSection === 'general' ? (
                 <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '300px', color: 'var(--text-muted)' }}>
@@ -2149,45 +2364,76 @@ function App() {
         ) : activeTab === 'my-profile' ? (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: isMobileScreen ? '0.75rem 0.75rem 2rem' : '1.25rem 1.25rem 2rem' }}>
 
-            {/* Hero Banner */}
-            <div style={{ borderRadius: '18px', border: '1px solid var(--panel-border)', overflow: 'hidden', position: 'relative', background: 'var(--panel-bg)' }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(139,92,246,0.09) 60%, rgba(16,185,129,0.05) 100%)', pointerEvents: 'none' }} />
-              {/* Decorative plant SVG */}
-              <svg style={{ position: 'absolute', right: isMobileScreen ? '1rem' : '6rem', bottom: 0, height: '90%', opacity: 0.12 }} viewBox="0 0 120 160" preserveAspectRatio="xMidYMax meet">
-                <ellipse cx="60" cy="155" rx="12" ry="5" fill="#10b981" />
-                <path d="M60 155 Q60 100 60 80" stroke="#10b981" strokeWidth="3" fill="none" />
-                <path d="M60 120 Q40 100 25 105 Q40 115 60 120" fill="#10b981" opacity="0.8" />
-                <path d="M60 100 Q80 80 95 85 Q80 95 60 100" fill="#10b981" opacity="0.7" />
-                <path d="M60 80 Q45 60 50 45 Q60 65 60 80" fill="#10b981" opacity="0.6" />
-              </svg>
-              {/* Italic tagline */}
-              {!isMobileScreen && (
-                <div style={{ position: 'absolute', right: '2.5rem', top: '50%', transform: 'translateY(-50%)', textAlign: 'right', fontStyle: 'italic', lineHeight: 1.8, color: 'var(--accent)', fontSize: '0.95rem', fontWeight: 500, opacity: 0.7 }}>
-                  Better money.<br />A calmer mind.<br />A brighter future.
+            {/* Hero Banner — card-style with cover photo */}
+            <div style={{
+              borderRadius: '18px',
+              border: '1px solid var(--panel-border)',
+              background: 'var(--panel-bg)',
+              width: '100%',
+              overflow: 'visible',
+            }}>
+              {/* Cover + avatar overlap wrapper */}
+              <div style={{ position: 'relative', borderRadius: '18px 18px 0 0', overflow: 'hidden' }}>
+                {/* Cover photo — aspect-ratio via paddingTop */}
+                <div style={{
+                  position: 'relative',
+                  width: '100%',
+                  paddingTop: isMobileScreen ? '28%' : '22%',
+                  background: 'linear-gradient(160deg, #b8cfe8 0%, #dce8f0 30%, #c5d8c5 60%, #a8bfa8 100%)',
+                }}>
+                  <svg viewBox="0 0 480 130" preserveAspectRatio="xMidYMid slice" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+                    <defs>
+                      <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#b8cfe8" />
+                        <stop offset="100%" stopColor="#dce8f0" />
+                      </linearGradient>
+                      <linearGradient id="mtnFar" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#c8d8c8" />
+                        <stop offset="100%" stopColor="#a8bfa8" />
+                      </linearGradient>
+                      <linearGradient id="mtnNear" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#8fa88f" />
+                        <stop offset="100%" stopColor="#6e8a6e" />
+                      </linearGradient>
+                    </defs>
+                    <rect width="480" height="130" fill="url(#skyGrad)" />
+                    <ellipse cx="240" cy="80" rx="280" ry="50" fill="rgba(255,255,255,0.35)" />
+                    <polygon points="0,130 60,55 120,90 180,40 260,80 320,35 390,65 480,30 480,130" fill="url(#mtnFar)" opacity="0.7" />
+                    <polygon points="0,130 80,70 160,95 240,60 330,85 420,55 480,75 480,130" fill="url(#mtnNear)" opacity="0.85" />
+                    <ellipse cx="240" cy="130" rx="260" ry="35" fill="rgba(255,255,255,0.5)" />
+                  </svg>
                 </div>
-              )}
-              <div style={{ position: 'relative', padding: isMobileScreen ? '1.5rem 1.25rem' : '1.75rem 2rem', display: 'flex', flexDirection: isMobileScreen ? 'column' : 'row', alignItems: isMobileScreen ? 'flex-start' : 'center', gap: '1.5rem' }}>
-                {/* Avatar */}
-                <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <div style={{ width: isMobileScreen ? '72px' : '90px', height: isMobileScreen ? '72px' : '90px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid rgba(99,102,241,0.3)', overflow: 'hidden' }}>
-                    {userProfile.avatarUrl
-                      ? <img src={userProfile.avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: isMobileScreen ? '1.5rem' : '2rem', fontWeight: 700, color: '#fff' }}>{userProfile.name.split(' ').map((n: string) => n[0]).join('')}</span>
-                    }
-                  </div>
-                  <button onClick={() => { setUserProfileDraft(userProfile); setIsEditingUserProfile(true); setUserProfileTab('personal-info'); }} style={{ position: 'absolute', bottom: 0, right: 0, width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', border: '2px solid var(--panel-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                    <Settings size={12} style={{ color: '#fff' }} />
-                  </button>
+              </div>
+
+              {/* Info section — avatar sits here, pulled up with negative margin (no overflow:hidden parent to clip it now) */}
+              <div style={{ padding: isMobileScreen ? '0 1rem 1.25rem' : '0 1.5rem 1.5rem', borderRadius: '0 0 18px 18px', background: 'var(--panel-bg)' }}>
+                {/* Avatar — negative margin overlaps the cover above */}
+                <div style={{
+                  width: isMobileScreen ? '62px' : '80px',
+                  height: isMobileScreen ? '62px' : '80px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '3px solid var(--panel-bg)',
+                  overflow: 'hidden',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
+                  marginTop: isMobileScreen ? '-31px' : '-40px',
+                  marginBottom: '0.6rem',
+                }}>
+                  {userProfile.avatarUrl
+                    ? <img src={userProfile.avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: isMobileScreen ? '1.25rem' : '1.65rem', fontWeight: 700, color: '#fff', userSelect: 'none' }}>{userProfile.name.split(' ').map((n: string) => n[0]).join('')}</span>
+                  }
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h1 style={{ margin: '0 0 0.25rem', fontSize: isMobileScreen ? '1.25rem' : '1.6rem', fontWeight: 700, color: 'var(--text-main)' }}>{userProfile.name}</h1>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
-                    <span>📍</span><span>{userProfile.location}</span>
-                  </div>
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{userProfile.email}</div>
-                  <span style={{ display: 'inline-block', background: 'rgba(99,102,241,0.1)', color: 'var(--accent)', borderRadius: '999px', padding: '0.2rem 0.75rem', fontSize: '0.72rem', fontWeight: 600, border: '1px solid rgba(99,102,241,0.2)' }}>
-                    Member since {userProfile.memberSince}
-                  </span>
+
+                {/* Name & bio */}
+                <h1 style={{ margin: '0 0 0.2rem', fontSize: isMobileScreen ? '1rem' : '1.2rem', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.2 }}>{userProfile.name}</h1>
+                <p style={{ margin: '0 0 0.5rem', fontSize: isMobileScreen ? '0.78rem' : '0.82rem', color: 'var(--text-muted)' }}>Designing for clarity &amp; usability</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: isMobileScreen ? '0.72rem' : '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                  <span>📍 {userProfile.location}</span>
+                  <span>🗓 Member since {userProfile.memberSince}</span>
                 </div>
               </div>
             </div>

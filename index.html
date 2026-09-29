@@ -6,6 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>growfintool</title>
   </head>
+  <!-- ⚡ Apply saved appearance settings BEFORE first paint to prevent flash -->
+  <script>
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('global_appearance') || '{}');
+        var r = document.documentElement;
+        if (s.panelOpacity != null)
+          r.style.setProperty('--panel-bg', 'rgba(20,21,23,' + (s.panelOpacity / 100) + ')');
+        if (s.panelBlur != null)
+          r.style.setProperty('--panel-blur', 'blur(' + s.panelBlur + 'px)');
+        if (s.bgOpacity != null)
+          r.style.setProperty('--app-bg-alpha', '' + (s.bgOpacity / 100));
+      } catch (e) {}
+    })();
+  </script>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
